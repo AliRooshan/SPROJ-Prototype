@@ -25,7 +25,7 @@ const ManageScholarships = () => {
         const formData = new FormData(e.target);
         const newScholarship = {
             id: Math.random(),
-            title: formData.get('title'),
+            name: formData.get('title'),
             amount: `${formData.get('currency')} ${formData.get('amount')}`,
             country: formData.get('country'),
             deadline: formData.get('deadline'),
@@ -68,7 +68,7 @@ const ManageScholarships = () => {
                             </span>
                         </div>
 
-                        <h3 className="text-xl font-bold text-white mb-2 leading-tight group-hover:text-amber-400 transition-colors line-clamp-2">{sch.title}</h3>
+                        <h3 className="text-xl font-bold text-white mb-2 leading-tight group-hover:text-amber-400 transition-colors line-clamp-2">{sch.name}</h3>
 
                         <div className="space-y-4 mt-auto pt-6">
                             <div className="flex justify-between items-center text-sm border-b border-zinc-800 pb-3">
