@@ -1,0 +1,123 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;700;900&display=swap');
+@import "tailwindcss";
+
+@theme {
+  /* Light Theme Colors - Welcoming & Vibrant */
+  --color-primary: #6366f1;
+  --color-primary-light: #818cf8;
+  --color-primary-dark: #4338ca;
+  --color-primary-glow: #4f46e5;
+
+  /* Backgrounds - Soft and Inviting */
+  --color-bg-base: #f8fafc;
+  --color-bg-secondary: #ffffff;
+  --color-bg-accent: #f1f5f9;
+
+  /* Accent Colors - Vibrant and Engaging */
+  --color-accent-cyan: #06b6d4;
+  --color-accent-pink: #ec4899;
+  --color-accent-amber: #f59e0b;
+  --color-accent-green: #10b981;
+  --color-accent-purple: #8b5cf6;
+
+  /* Text Colors - High Contrast */
+  --color-text-primary: #0f172a;
+  --color-text-secondary: #475569;
+  --color-text-muted: #64748b;
+
+  /* Fonts */
+  --font-display: 'Outfit', sans-serif;
+  --font-sans: 'Inter', sans-serif;
+
+  /* Shadows - Soft and Modern */
+  --shadow-glow: 0 0 30px -5px rgba(99, 102, 241, 0.3);
+  --shadow-glow-lg: 0 0 40px -5px rgba(99, 102, 241, 0.4);
+  --shadow-card: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --shadow-card-hover: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+
+  /* Background Images */
+  --image-gradient-hero: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  --image-gradient-bg: linear-gradient(to bottom right, #e0e7ff 0%, #fef3c7 50%, #fce7f3 100%);
+  --image-grid-pattern: linear-gradient(to right, rgba(99, 102, 241, 0.03) 1px, transparent 1px), linear-gradient(to bottom, rgba(99, 102, 241, 0.03) 1px, transparent 1px);
+}
+
+@layer base {
+  body {
+    @apply bg-gradient-to-br from-indigo-50 via-amber-50 to-pink-50 text-slate-900 font-sans antialiased selection:bg-primary selection:text-white overflow-x-hidden min-h-screen;
+    background-attachment: fixed;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply font-display tracking-tight text-slate-900;
+  }
+}
+
+/* Modern Light Theme Utilities */
+.glass-card {
+  @apply bg-white/80 backdrop-blur-xl border border-indigo-100/50 shadow-lg transition-all duration-300;
+}
+
+.glass-card:hover {
+  @apply shadow-xl border-indigo-200/60;
+}
+
+.glass-nav {
+  @apply bg-white/90 backdrop-blur-md border-b border-indigo-100/50 shadow-sm;
+}
+
+.text-glow {
+  text-shadow: 0 0 20px rgba(99, 102, 241, 0.4);
+}
+
+.gradient-text-hero {
+  @apply bg-clip-text text-transparent bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600;
+}
+
+.card-hover {
+  @apply hover:border-primary/60 hover:shadow-xl hover:-translate-y-1;
+}
+
+/* Animations */
+@keyframes float {
+
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+
+  50% {
+    transform: translateY(-20px);
+  }
+}
+
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}
+
+.blob-glow {
+  @apply absolute blur-[120px] rounded-full opacity-30 mix-blend-multiply pointer-events-none;
+}
+
+/* Background Pattern */
+.bg-pattern {
+  background-image: var(--image-grid-pattern);
+  background-size: 40px 40px;
+}
+
+/* Vibrant Accents */
+.accent-gradient {
+  @apply bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500;
+}
+
+.shadow-glow {
+  box-shadow: var(--shadow-glow);
+}
+
+.shadow-glow-lg {
+  box-shadow: var(--shadow-glow-lg);
+}
