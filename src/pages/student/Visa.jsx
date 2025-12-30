@@ -109,8 +109,8 @@ const VisaGuidance = () => {
                                     key={c}
                                     onClick={() => setSelectedCountry(c)}
                                     className={`px-4 py-2 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${selectedCountry === c
-                                            ? 'bg-blue-600 text-white shadow-lg'
-                                            : 'text-blue-100 hover:bg-white/10'
+                                        ? 'bg-blue-600 text-white shadow-lg'
+                                        : 'text-blue-100 hover:bg-white/10'
                                         }`}
                                 >
                                     {c}
@@ -145,7 +145,7 @@ const VisaGuidance = () => {
                                     </div>
                                     <div className="flex-grow">
                                         <div className="flex justify-between items-start">
-                                            <h3 className="text-xl font-bold mb-1">{step.title}</h3>
+                                            <h3 className="text-xl font-bold mb-1 text-white">{step.title}</h3>
                                             <span className="text-xs font-black bg-white/20 px-2 py-1 rounded-lg backdrop-blur-md uppercase tracking-wider">{step.duration}</span>
                                         </div>
                                         <p className="text-blue-50/90 font-medium leading-relaxed max-w-lg">{step.description}</p>
