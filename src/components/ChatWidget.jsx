@@ -35,7 +35,7 @@ const ChatWidget = () => {
     return (
         <>
             {isOpen && (
-                <div className="fixed inset-0 sm:inset-auto sm:bottom-24 sm:right-6 z-[60] bg-white sm:w-96 sm:h-[600px] sm:rounded-2xl shadow-2xl flex flex-col sm:border border-slate-200 overflow-hidden animate-in fade-in slide-in-from-bottom-10 duration-300">
+                <div className="fixed inset-0 sm:inset-auto sm:bottom-24 sm:right-6 z-[60] bg-white sm:w-96 sm:h-[600px] sm:max-h-[calc(100vh-8rem)] sm:rounded-2xl shadow-2xl flex flex-col sm:border border-slate-200 overflow-hidden animate-in fade-in slide-in-from-bottom-10 duration-300">
                     {/* Header */}
                     <div className="bg-primary p-4 flex justify-between items-center text-white shadow-sm shrink-0">
                         <div className="flex items-center gap-3">
@@ -45,8 +45,8 @@ const ChatWidget = () => {
                                 <p className="text-xs text-blue-100 opacity-90">Always here to help</p>
                             </div>
                         </div>
-                        <button 
-                            onClick={toggleChat} 
+                        <button
+                            onClick={toggleChat}
                             className="hover:bg-white/20 rounded-full p-2 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-white/50"
                             aria-label="Close chat"
                         >
@@ -95,8 +95,8 @@ const ChatWidget = () => {
                                 placeholder="Type a message..."
                                 className="flex-1 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all placeholder:text-slate-400"
                             />
-                            <button 
-                                type="submit" 
+                            <button
+                                type="submit"
                                 disabled={!input.trim()}
                                 className="bg-primary hover:bg-primary-dark disabled:opacity-50 disabled:cursor-not-allowed text-white p-2.5 rounded-xl transition-all duration-200 shadow-md hover:shadow-lg active:scale-95"
                             >
