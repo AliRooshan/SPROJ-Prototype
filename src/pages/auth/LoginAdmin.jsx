@@ -16,8 +16,8 @@ const LoginAdmin = () => {
         e.preventDefault();
 
         // Only allow admin@voyage.com
-        if (credentials.adminId !== 'admin@voyage.com') {
-            setError('Unauthorized. Only admin@voyage.com can access the admin portal.');
+        if (credentials.adminId !== 'admin@edvoyage.com') {
+            setError('Unauthorized. Only admin@edvoyage.com can access the admin portal.');
             return;
         }
 
