@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Search, Plus, Award, ChevronsRight, Calendar, Globe, X } from 'lucide-react';
+import { Search, Plus, Award, ChevronsRight, Calendar, Globe, X, Edit2 } from 'lucide-react';
 import scholarshipsData from '../../data/scholarships.json';
 
 const ManageScholarships = () => {
     const [searchParams, setSearchParams] = useSearchParams();
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [editingScholarship, setEditingScholarship] = useState(null);
     const [localScholarships, setLocalScholarships] = useState(scholarshipsData);
 
     // Check for URL action
@@ -34,6 +36,28 @@ const ManageScholarships = () => {
 
         setLocalScholarships([newScholarship, ...localScholarships]);
         handleCloseModal();
+    };
+
+    const handleEditScholarship = (scholarship) => {
+        setEditingScholarship(scholarship);
+        setIsEditModalOpen(true);
+    };
+
+    const handleUpdateScholarship = (e) => {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        const updatedScholarships = localScholarships.map(s =>
+            s.id === editingScholarship.id ? {
+                ...s,
+                name: formData.get('title'),
+                amount: `${formData.get('currency')} ${formData.get('amount')}`,
+                country: formData.get('country'),
+                deadline: formData.get('deadline')
+            } : s
+        );
+        setLocalScholarships(updatedScholarships);
+        setIsEditModalOpen(false);
+        setEditingScholarship(null);
     };
 
     return (
@@ -84,9 +108,12 @@ const ManageScholarships = () => {
                         </div>
 
                         <div className="mt-6">
-                            <button className="w-full py-3 rounded-xl bg-zinc-800 text-zinc-300 font-bold hover:bg-zinc-700 hover:text-white transition-all flex items-center justify-center gap-2 group-hover/btn">
+                            <button
+                                onClick={() => handleEditScholarship(sch)}
+                                className="w-full py-3 rounded-xl bg-zinc-800 text-zinc-300 font-bold hover:bg-zinc-700 hover:text-white transition-all flex items-center justify-center gap-2 group-hover/btn"
+                            >
                                 Edit Details
-                                <ChevronsRight size={16} className="text-amber-500" />
+                                <Edit2 size={16} className="text-amber-500" />
                             </button>
                         </div>
                     </div>
@@ -146,6 +173,60 @@ const ManageScholarships = () => {
                             <div className="pt-4 flex gap-3">
                                 <button type="button" onClick={handleCloseModal} className="flex-1 py-3 rounded-xl bg-zinc-800 text-zinc-300 font-bold hover:bg-zinc-700 transition-colors">Cancel</button>
                                 <button type="submit" className="flex-1 py-3 rounded-xl bg-amber-500 text-black font-bold hover:bg-amber-400 transition-colors">Post</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Edit Scholarship Modal */}
+            {isEditModalOpen && editingScholarship && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-[#18181b] w-full max-w-lg rounded-2xl border border-zinc-800 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+                        <div className="p-6 border-b border-zinc-800 flex justify-between items-center bg-zinc-900/50">
+                            <h2 className="text-xl font-black text-white">Edit Scholarship</h2>
+                            <button onClick={() => {
+                                setIsEditModalOpen(false);
+                                setEditingScholarship(null);
+                            }} className="text-zinc-500 hover:text-white transition-colors">
+                                <X size={24} />
+                            </button>
+                        </div>
+                        <form onSubmit={handleUpdateScholarship} className="p-6 space-y-4">
+                            <div>
+                                <label className="block text-sm font-bold text-zinc-400 mb-1.5">Scholarship Title</label>
+                                <input name="title" required type="text" defaultValue={editingScholarship.name} className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white focus:outline-none focus:border-amber-500 transition-colors" />
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-bold text-zinc-400 mb-1.5">Amount</label>
+                                    <input name="amount" required type="number" defaultValue={editingScholarship.amount.replace(/[^0-9]/g, '')} className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white focus:outline-none focus:border-amber-500 transition-colors" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-bold text-zinc-400 mb-1.5">Currency</label>
+                                    <select name="currency" defaultValue={editingScholarship.amount.charAt(0)} className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white focus:outline-none focus:border-amber-500 transition-colors">
+                                        <option value="$">$ USD</option>
+                                        <option value="£">£ GBP</option>
+                                        <option value="€">€ EUR</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-bold text-zinc-400 mb-1.5">Country</label>
+                                    <input name="country" type="text" defaultValue={editingScholarship.country} className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white focus:outline-none focus:border-amber-500 transition-colors" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-bold text-zinc-400 mb-1.5">Deadline</label>
+                                    <input name="deadline" required type="date" defaultValue={editingScholarship.deadline} className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white focus:outline-none focus:border-amber-500 transition-colors" />
+                                </div>
+                            </div>
+                            <div className="pt-4 flex gap-3">
+                                <button type="button" onClick={() => {
+                                    setIsEditModalOpen(false);
+                                    setEditingScholarship(null);
+                                }} className="flex-1 py-3 rounded-xl bg-zinc-800 text-zinc-300 font-bold hover:bg-zinc-700 transition-colors">Cancel</button>
+                                <button type="submit" className="flex-1 py-3 rounded-xl bg-amber-500 text-black font-bold hover:bg-amber-400 transition-colors">Update</button>
                             </div>
                         </form>
                     </div>

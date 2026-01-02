@@ -1,11 +1,17 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, BookOpen, GraduationCap, DollarSign, Settings, LogOut, ShieldCheck } from 'lucide-react';
+import ConfirmDialog from './ConfirmDialog';
 
 const AdminSidebar = () => {
     const navigate = useNavigate();
+    const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
     const handleLogout = () => {
+        setShowLogoutConfirm(true);
+    };
+
+    const confirmLogout = () => {
         navigate('/');
     };
 
@@ -68,6 +74,16 @@ const AdminSidebar = () => {
                     <span className="hidden md:block">Sign Out</span>
                 </button>
             </div>
+
+            <ConfirmDialog
+                isOpen={showLogoutConfirm}
+                onClose={() => setShowLogoutConfirm(false)}
+                onConfirm={confirmLogout}
+                title="Sign Out"
+                message="Are you sure you want to sign out from the admin panel?"
+                confirmText="Sign Out"
+                cancelText="Cancel"
+            />
         </aside>
     );
 };

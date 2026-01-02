@@ -1,19 +1,27 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Shield, Lock, User, ArrowRight, LayoutDashboard } from 'lucide-react';
+import { Shield, Lock, User, ArrowRight, LayoutDashboard, AlertCircle } from 'lucide-react';
 
 const LoginAdmin = () => {
     const navigate = useNavigate();
     const [credentials, setCredentials] = useState({ adminId: '', password: '' });
+    const [error, setError] = useState('');
 
     const handleChange = (e) => {
         setCredentials({ ...credentials, [e.target.name]: e.target.value });
+        setError(''); // Clear error on typing
     };
 
     const handleLogin = (e) => {
         e.preventDefault();
-        // In a real app, validate credentials here.
-        // For prototype, any input works or you can enforce 'admin' / 'admin123'
+
+        // Only allow admin@voyage.com
+        if (credentials.adminId !== 'admin@voyage.com') {
+            setError('Unauthorized. Only admin@voyage.com can access the admin portal.');
+            return;
+        }
+
+        // No password validation required as per requirements
         navigate('/admin/dashboard');
     };
 
@@ -45,6 +53,13 @@ const LoginAdmin = () => {
                         <h1 className="text-3xl font-black text-white tracking-tight mb-2">Admin Portal</h1>
                         <p className="text-slate-400 font-medium text-sm tracking-wide uppercase">Restricted Access Required</p>
                     </div>
+
+                    {error && (
+                        <div className="mb-6 bg-red-500/10 border border-red-500/20 rounded-xl p-4 flex items-center gap-3 text-red-400 text-sm font-bold animate-in slide-in-from-top-2">
+                            <AlertCircle size={20} />
+                            {error}
+                        </div>
+                    )}
 
                     <form onSubmit={handleLogin} className="space-y-6">
                         <div className="space-y-2">
@@ -87,7 +102,7 @@ const LoginAdmin = () => {
                             type="submit"
                             className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-4 rounded-xl shadow-lg shadow-indigo-900/50 transition-all transform hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-2 mt-8 group"
                         >
-                            <span>Access Dashboard</span>
+                            <span>Login</span>
                             <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
                         </button>
                     </form>

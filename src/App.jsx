@@ -23,6 +23,8 @@ import VisaGuidance from './pages/student/Visa';
 import StudentProfile from './pages/student/Profile';
 import Scholarships from './pages/student/Scholarships';
 import ScholarshipDetails from './pages/student/ScholarshipDetails';
+import SavedPrograms from './pages/student/SavedPrograms';
+import SavedScholarships from './pages/student/SavedScholarships';
 
 // Admin Pages
 import AdminDashboard from './pages/admin/Dashboard';
@@ -51,8 +53,10 @@ function App() {
           <Route path="dashboard" element={<StudentDashboard />} />
           <Route path="explore" element={<Explore />} />
           <Route path="program/:id" element={<ProgramDetails />} />
+          <Route path="saved-programs" element={<SavedPrograms />} />
+          <Route path="saved-scholarships" element={<SavedScholarships />} />
           <Route path="scholarships" element={<Scholarships />} />
-          <Route path="scholarship/:id" element={<ScholarshipDetails />} />
+          <Route path="scholarships/:id" element={<ScholarshipDetails />} />
           <Route path="tracker" element={<Tracker />} />
           <Route path="cost" element={<CostEstimator />} />
           <Route path="visa" element={<VisaGuidance />} />

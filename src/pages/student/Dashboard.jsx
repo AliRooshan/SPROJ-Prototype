@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Clock, TrendingUp, AlertCircle, Search, Sparkles, BookmarkCheck, Target, Award, ArrowRight, Zap, GraduationCap } from 'lucide-react';
+import { Clock, TrendingUp, AlertCircle, Search, Sparkles, BookmarkCheck, Target, Award, ArrowRight, Zap, GraduationCap, DollarSign } from 'lucide-react';
 import ProgramCard from '../../components/ProgramCard';
 import DocumentChecklist from '../../components/DocumentChecklist';
 import AuthService from '../../services/AuthService';
@@ -9,12 +9,14 @@ const StudentDashboard = () => {
     const navigate = useNavigate();
     const [user, setUser] = useState({ fullName: 'Student', stats: { saved: 0, pending: 0, accepted: 0 } });
     const [savedPrograms, setSavedPrograms] = useState([]);
+    const [savedScholarships, setSavedScholarships] = useState([]);
 
     useEffect(() => {
         const currentUser = AuthService.getCurrentUser();
         if (currentUser) {
             setUser(currentUser);
             setSavedPrograms(currentUser.savedPrograms || []);
+            setSavedScholarships(currentUser.savedScholarships || []);
         } else {
             navigate('/login/student');
         }
@@ -140,7 +142,7 @@ const StudentDashboard = () => {
                                 </div>
                                 Saved Programs
                             </h2>
-                            <button onClick={() => navigate('/student/tracker')} className="text-sm font-bold text-indigo-500 hover:text-indigo-700 hover:underline transition">
+                            <button onClick={() => navigate('/student/saved-programs')} className="text-sm font-bold text-indigo-500 hover:text-indigo-700 hover:underline transition">
                                 View all →
                             </button>
                         </div>
@@ -169,6 +171,85 @@ const StudentDashboard = () => {
                             </div>
                         )}
                     </div>
+
+                    {/* Saved Scholarships - Premium List */}
+                    <div className="space-y-6">
+                        <div className="flex items-center justify-between px-2">
+                            <h2 className="text-2xl font-black text-slate-800 flex items-center gap-3">
+                                <div className="bg-gradient-to-br from-emerald-500 to-teal-500 text-white p-2 rounded-xl shadow-lg shadow-emerald-200">
+                                    <Award size={20} />
+                                </div>
+                                Saved Scholarships
+                            </h2>
+                            <button onClick={() => navigate('/student/saved-scholarships')} className="text-sm font-bold text-emerald-500 hover:text-emerald-700 hover:underline transition">
+                                View all →
+                            </button>
+                        </div>
+
+                        {savedScholarships.length > 0 ? (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                                {savedScholarships.slice(0, 4).map(scholarship => (
+                                    <div
+                                        key={scholarship.id}
+                                        onClick={() => navigate(`/student/scholarships/${scholarship.id}`)}
+                                        className="group relative bg-white/70 backdrop-blur-xl border border-white/60 p-6 rounded-[2rem] shadow-lg hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 cursor-pointer overflow-hidden"
+                                    >
+                                        <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-emerald-400 to-teal-400 opacity-5 rounded-full blur-2xl group-hover:opacity-10 transition-opacity"></div>
+
+                                        <div className="relative z-10 space-y-4">
+                                            <div className="flex items-start justify-between gap-3">
+                                                <div className="flex-1">
+                                                    <h3 className="font-black text-lg text-slate-800 mb-1 line-clamp-2 group-hover:text-emerald-600 transition-colors">
+                                                        {scholarship.name}
+                                                    </h3>
+                                                    <p className="text-sm text-slate-500 font-medium line-clamp-1">
+                                                        {scholarship.provider}
+                                                    </p>
+                                                </div>
+                                                <div className={`px-3 py-1 rounded-lg text-xs font-bold ${scholarship.status === 'Eligible' ? 'bg-emerald-100 text-emerald-700' :
+                                                    scholarship.status === 'Not Eligible' ? 'bg-red-100 text-red-700' :
+                                                        'bg-amber-100 text-amber-700'
+                                                    }`}>
+                                                    {scholarship.status}
+                                                </div>
+                                            </div>
+
+                                            <div className="flex items-center justify-between pt-3 border-t border-slate-100">
+                                                <div className="flex items-center gap-2">
+                                                    <DollarSign size={16} className="text-emerald-500" />
+                                                    <span className="text-sm font-bold text-slate-700">{scholarship.amount}</span>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <Clock size={16} className="text-slate-400" />
+                                                    <span className="text-sm font-medium text-slate-500">{scholarship.deadline}</span>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex items-center gap-2">
+                                                <span className="px-3 py-1 bg-slate-100 rounded-lg text-xs font-bold text-slate-600">
+                                                    {scholarship.type}
+                                                </span>
+                                                <span className="px-3 py-1 bg-slate-100 rounded-lg text-xs font-bold text-slate-600">
+                                                    {scholarship.country}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="bg-white/40 backdrop-blur-xl border-2 border-dashed border-emerald-200 rounded-3xl p-10 flex flex-col items-center justify-center text-center">
+                                <div className="w-20 h-20 bg-emerald-50 rounded-full flex items-center justify-center mb-4 animate-bounce">
+                                    <Award className="text-emerald-400" size={32} />
+                                </div>
+                                <h3 className="text-xl font-black text-slate-700 mb-2">No saved scholarships yet</h3>
+                                <p className="text-slate-500 mb-6 max-w-sm">Discover funding opportunities to support your studies abroad.</p>
+                                <button onClick={() => navigate('/student/scholarships')} className="px-6 py-2.5 bg-emerald-600 text-white rounded-xl font-bold shadow-lg shadow-emerald-200 hover:shadow-emerald-300 hover:-translate-y-0.5 transition-all">
+                                    Explore Scholarships
+                                </button>
+                            </div>
+                        )}
+                    </div>
                 </div>
 
                 {/* Right Column (Sidebar Widgets) - Spans 4 cols */}
@@ -189,17 +270,17 @@ const StudentDashboard = () => {
                             </div>
                         </div>
 
-                        <div className="space-y-3 relative z-10">
+                        <div className="space-y-3 relative z-10 max-h-[400px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-amber-200 scrollbar-track-transparent">
                             {deadlines.length > 0 ? deadlines.map((item, idx) => (
                                 <div key={idx} className="flex items-center gap-4 p-4 rounded-2xl bg-white border border-slate-100 shadow-sm hover:shadow-md hover:border-amber-200 transition-all cursor-pointer group/item">
                                     <div className="flex flex-col items-center justify-center w-12 h-12 bg-slate-50 rounded-xl border border-slate-200 group-hover/item:border-amber-200 group-hover/item:bg-amber-50">
                                         <span className="text-[10px] font-bold text-slate-400 uppercase group-hover/item:text-amber-500">{item.date.split('-')[1]}</span>
                                         <span className="text-lg font-black text-slate-700 group-hover/item:text-amber-700">{item.date.split('-')[2]}</span>
                                     </div>
-                                    <div>
-                                        <h4 className="font-bold text-slate-800 text-sm line-clamp-1">{item.title}</h4>
-                                        <span className="text-xs font-semibold text-slate-500 flex items-center gap-1">
-                                            {item.type}
+                                    <div className="flex-1">
+                                        <h4 className="font-bold text-slate-800 text-base line-clamp-1 mb-0.5">{item.university || item.title}</h4>
+                                        <span className="text-xs font-semibold text-slate-500 flex items-center gap-1.5">
+                                            {item.task || item.type || 'Application'}
                                             <span className="w-1 h-1 rounded-full bg-slate-300"></span>
                                             {item.date.split('-')[0]}
                                         </span>

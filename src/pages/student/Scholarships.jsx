@@ -103,10 +103,10 @@ const Scholarships = () => {
                                         <div className="flex flex-wrap items-center gap-4">
                                             <h3 className="text-2xl font-black text-slate-900 group-hover:text-emerald-700 transition-colors leading-tight">{item.name}</h3>
                                             <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider border shadow-sm ${isEligible
-                                                    ? 'bg-emerald-100/50 text-emerald-700 border-emerald-200'
-                                                    : item.status === 'Check Requirements'
-                                                        ? 'bg-amber-100/50 text-amber-700 border-amber-200'
-                                                        : 'bg-slate-100/50 text-slate-500 border-slate-200'
+                                                ? 'bg-emerald-100/50 text-emerald-700 border-emerald-200'
+                                                : item.status === 'Check Requirements'
+                                                    ? 'bg-amber-100/50 text-amber-700 border-amber-200'
+                                                    : 'bg-slate-100/50 text-slate-500 border-slate-200'
                                                 }`}>
                                                 {isEligible ? <CheckCircle size={12} strokeWidth={3} /> : item.status === 'Check Requirements' ? <Sparkles size={12} /> : <XCircle size={12} strokeWidth={3} />}
                                                 {item.status}
@@ -143,7 +143,7 @@ const Scholarships = () => {
                                         </div>
 
                                         <button
-                                            onClick={() => navigate(`/student/scholarship/${item.id}`)}
+                                            onClick={() => navigate(`/student/scholarships/${item.id}`)}
                                             className="w-full px-6 py-3 bg-slate-900 text-white font-bold rounded-xl hover:bg-emerald-600 transition-all shadow-lg hover:shadow-emerald-200 hover:-translate-y-0.5 group/btn flex items-center justify-center gap-2"
                                         >
                                             View Details

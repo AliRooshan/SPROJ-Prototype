@@ -23,7 +23,7 @@ const ProfileSetup = () => {
         englishTest: 'IELTS',
         englishScore: '',
         targetCountries: [],
-        intake: 'Fall 2024',
+        intake: 'Fall 2026',
         budget: '',
         careerGoal: ''
     });
@@ -225,9 +225,9 @@ const ProfileSetup = () => {
                                 onChange={handleChange}
                                 className="block w-full px-4 py-3 bg-white border-2 border-indigo-50 rounded-xl focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 text-slate-900 transition-all font-medium cursor-pointer"
                             >
-                                <option>Fall 2024</option>
-                                <option>Spring 2025</option>
-                                <option>Fall 2025</option>
+                                <option>Fall 2026</option>
+                                <option>Spring 2027</option>
+                                <option>Fall 2027</option>
                             </select>
                         </div>
                     </div>

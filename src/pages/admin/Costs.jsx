@@ -1,10 +1,26 @@
-import React from 'react';
-import { DollarSign, RefreshCw, Save, MapPin } from 'lucide-react';
+import React, { useState } from 'react';
+import { DollarSign, RefreshCw, Save, MapPin, Plus, X } from 'lucide-react';
 import costsData from '../../data/costs.json';
 
 const ManageCosts = () => {
     // Use real data from JSON
-    const cities = costsData;
+    const [cities, setCities] = useState(costsData);
+    const [isModalOpen, setIsModalOpen] = useState(false);
+
+    const handleAddExchangeRate = (e) => {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        const newCity = {
+            city: formData.get('city'),
+            country: formData.get('country'),
+            currency: formData.get('currency'),
+            rent: parseInt(formData.get('rent')),
+            food: parseInt(formData.get('food')),
+            transport: parseInt(formData.get('transport'))
+        };
+        setCities([...cities, newCity]);
+        setIsModalOpen(false);
+    };
 
     return (
         <div className="space-y-8 animate-in fade-in duration-500 max-w-7xl mx-auto">
@@ -13,13 +29,22 @@ const ManageCosts = () => {
                     <h1 className="text-3xl font-black text-white tracking-tight">Cost Configuration</h1>
                     <p className="text-zinc-400 font-medium">Update base estimates for the Cost Estimator tool.</p>
                 </div>
-                <button
-                    onClick={() => alert('Exchange rates synced successfully!')}
-                    className="flex items-center gap-2 px-5 py-3 bg-zinc-800 hover:bg-zinc-700 text-white font-bold rounded-xl border border-zinc-700 shadow-sm transition-all active:scale-95"
-                >
-                    <RefreshCw size={18} />
-                    <span>Sync Exchange Rates</span>
-                </button>
+                <div className="flex gap-3">
+                    <button
+                        onClick={() => setIsModalOpen(true)}
+                        className="flex items-center gap-2 px-5 py-3 bg-amber-500 hover:bg-amber-400 text-black font-bold rounded-xl shadow-lg shadow-amber-900/20 transition-all active:scale-95"
+                    >
+                        <Plus size={18} />
+                        <span>Add Exchange Rate</span>
+                    </button>
+                    <button
+                        onClick={() => alert('Exchange rates synced successfully!')}
+                        className="flex items-center gap-2 px-5 py-3 bg-zinc-800 hover:bg-zinc-700 text-white font-bold rounded-xl border border-zinc-700 shadow-sm transition-all active:scale-95"
+                    >
+                        <RefreshCw size={18} />
+                        <span>Sync Rates</span>
+                    </button>
+                </div>
             </div>
 
             <div className="bg-[#18181b] rounded-[2rem] border border-zinc-800 overflow-hidden shadow-sm">
@@ -80,6 +105,61 @@ const ManageCosts = () => {
                     </table>
                 </div>
             </div>
+
+            {/* Add Exchange Rate Modal */}
+            {isModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-[#18181b] w-full max-w-lg rounded-2xl border border-zinc-800 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+                        <div className="p-6 border-b border-zinc-800 flex justify-between items-center bg-zinc-900/50">
+                            <h2 className="text-xl font-black text-white">Add New Exchange Rate</h2>
+                            <button onClick={() => setIsModalOpen(false)} className="text-zinc-500 hover:text-white transition-colors">
+                                <X size={24} />
+                            </button>
+                        </div>
+                        <form onSubmit={handleAddExchangeRate} className="p-6 space-y-4">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-bold text-zinc-400 mb-1.5">City</label>
+                                    <input name="city" required type="text" className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white focus:outline-none focus:border-amber-500 transition-colors" placeholder="e.g. London" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-bold text-zinc-400 mb-1.5">Country</label>
+                                    <input name="country" required type="text" className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white focus:outline-none focus:border-amber-500 transition-colors" placeholder="e.g. UK" />
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-zinc-400 mb-1.5">Currency</label>
+                                <select name="currency" className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white focus:outline-none focus:border-amber-500 transition-colors">
+                                    <option value="$">$ USD</option>
+                                    <option value="£">£ GBP</option>
+                                    <option value="€">€ EUR</option>
+                                    <option value="¥">¥ JPY</option>
+                                    <option value="A$">A$ AUD</option>
+                                    <option value="C$">C$ CAD</option>
+                                </select>
+                            </div>
+                            <div className="grid grid-cols-3 gap-4">
+                                <div>
+                                    <label className="block text-sm font-bold text-zinc-400 mb-1.5">Rent/Month</label>
+                                    <input name="rent" required type="number" className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white focus:outline-none focus:border-amber-500 transition-colors" placeholder="800" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-bold text-zinc-400 mb-1.5">Food/Month</label>
+                                    <input name="food" required type="number" className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white focus:outline-none focus:border-amber-500 transition-colors" placeholder="300" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-bold text-zinc-400 mb-1.5">Transport/Month</label>
+                                    <input name="transport" required type="number" className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white focus:outline-none focus:border-amber-500 transition-colors" placeholder="100" />
+                                </div>
+                            </div>
+                            <div className="pt-4 flex gap-3">
+                                <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 py-3 rounded-xl bg-zinc-800 text-zinc-300 font-bold hover:bg-zinc-700 transition-colors">Cancel</button>
+                                <button type="submit" className="flex-1 py-3 rounded-xl bg-amber-500 text-black font-bold hover:bg-amber-400 transition-colors">Add Rate</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

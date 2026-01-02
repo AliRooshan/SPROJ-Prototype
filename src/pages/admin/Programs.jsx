@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Search, Plus, Filter, MoreHorizontal, BookOpen, MapPin, X } from 'lucide-react';
+import { Search, Plus, Filter, MoreHorizontal, BookOpen, MapPin, X, Edit2, Trash2 } from 'lucide-react';
 import universitiesData from '../../data/universities.json';
 
 const ManagePrograms = () => {
@@ -20,7 +20,13 @@ const ManagePrograms = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [searchParams, setSearchParams] = useSearchParams();
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [editingProgram, setEditingProgram] = useState(null);
     const [localPrograms, setLocalPrograms] = useState(allPrograms);
+    const [filterCountry, setFilterCountry] = useState('All');
+    const [showFilterDropdown, setShowFilterDropdown] = useState(false);
+    const [openMenuId, setOpenMenuId] = useState(null);
+    const [deleteConfirmId, setDeleteConfirmId] = useState(null);
 
     // Check for URL action
     useEffect(() => {
@@ -51,10 +57,43 @@ const ManagePrograms = () => {
         handleCloseModal();
     };
 
-    const filteredPrograms = localPrograms.filter(prog =>
-        prog.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        prog.universityName.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const handleEditProgram = (prog) => {
+        setEditingProgram(prog);
+        setIsEditModalOpen(true);
+        setOpenMenuId(null);
+    };
+
+    const handleUpdateProgram = (e) => {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        const updatedPrograms = localPrograms.map(p =>
+            p.id === editingProgram.id ? {
+                ...p,
+                name: formData.get('programName'),
+                universityName: formData.get('university'),
+                location: formData.get('country'),
+                fees: `$${formData.get('tuition')}`
+            } : p
+        );
+        setLocalPrograms(updatedPrograms);
+        setIsEditModalOpen(false);
+        setEditingProgram(null);
+    };
+
+    const handleDeleteProgram = (id) => {
+        setLocalPrograms(localPrograms.filter(p => p.id !== id));
+        setDeleteConfirmId(null);
+        setOpenMenuId(null);
+    };
+
+    const countries = ['All', ...new Set(allPrograms.map(p => p.location))];
+
+    const filteredPrograms = localPrograms.filter(prog => {
+        const matchesSearch = prog.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            prog.universityName.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesCountry = filterCountry === 'All' || prog.location === filterCountry;
+        return matchesSearch && matchesCountry;
+    });
 
     return (
         <div className="space-y-8 animate-in fade-in duration-500 max-w-7xl mx-auto">
@@ -84,11 +123,56 @@ const ManagePrograms = () => {
                         className="w-full pl-12 pr-4 py-3 bg-zinc-900/50 border border-zinc-700 rounded-xl text-white placeholder-zinc-500 focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/50 transition-all"
                     />
                 </div>
-                <div className="flex gap-2">
-                    <button className="px-4 py-3 bg-zinc-900 border border-zinc-700 rounded-xl text-zinc-300 font-bold hover:bg-zinc-800 flex items-center gap-2">
+                <div className="flex gap-2 relative">
+                    <button
+                        onClick={() => setShowFilterDropdown(!showFilterDropdown)}
+                        className="px-4 py-3 bg-zinc-900 border border-zinc-700 rounded-xl text-zinc-300 font-bold hover:bg-zinc-800 flex items-center gap-2"
+                    >
                         <Filter size={18} />
                         <span>Filter</span>
+                        {filterCountry !== 'All' && (
+                            <span className="ml-1 px-2 py-0.5 bg-amber-500/20 text-amber-400 text-xs rounded-full">1</span>
+                        )}
                     </button>
+
+                    {/* Filter Dropdown */}
+                    {showFilterDropdown && (
+                        <div className="absolute right-0 top-14 w-56 bg-[#18181b] border border-zinc-800 rounded-xl shadow-2xl z-50 animate-in slide-in-from-top-2 duration-200">
+                            <div className="p-3 border-b border-zinc-800">
+                                <h4 className="font-bold text-white text-sm">Filter by Country</h4>
+                            </div>
+                            <div className="p-2 max-h-64 overflow-y-auto">
+                                {countries.map(country => (
+                                    <button
+                                        key={country}
+                                        onClick={() => {
+                                            setFilterCountry(country);
+                                            setShowFilterDropdown(false);
+                                        }}
+                                        className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition-colors ${filterCountry === country
+                                            ? 'bg-amber-500/20 text-amber-400'
+                                            : 'text-zinc-400 hover:bg-zinc-800 hover:text-white'
+                                            }`}
+                                    >
+                                        {country}
+                                    </button>
+                                ))}
+                            </div>
+                            {filterCountry !== 'All' && (
+                                <div className="p-2 border-t border-zinc-800">
+                                    <button
+                                        onClick={() => {
+                                            setFilterCountry('All');
+                                            setShowFilterDropdown(false);
+                                        }}
+                                        className="w-full px-3 py-2 text-xs font-bold text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                                    >
+                                        Clear Filter
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </div>
             </div>
 
@@ -116,10 +200,38 @@ const ManagePrograms = () => {
                                 <span className="block text-white font-bold text-lg">{prog.fees}</span>
                                 <span className="text-xs font-bold text-zinc-500 uppercase tracking-widest">{prog.duration}</span>
                             </div>
-                            <div className="flex gap-2">
-                                <button className="p-2 hover:bg-zinc-700 rounded-lg text-zinc-400 transition-colors">
+                            <div className="flex gap-2 relative">
+                                <button
+                                    onClick={() => setOpenMenuId(openMenuId === prog.id ? null : prog.id)}
+                                    className="p-2 hover:bg-zinc-700 rounded-lg text-zinc-400 transition-colors"
+                                >
                                     <MoreHorizontal size={20} />
                                 </button>
+
+                                {/* Three-dot Menu */}
+                                {openMenuId === prog.id && (
+                                    <div className="absolute right-0 top-10 w-48 bg-[#18181b] border border-zinc-800 rounded-xl shadow-2xl z-50 animate-in slide-in-from-top-2 duration-200">
+                                        <div className="p-2">
+                                            <button
+                                                onClick={() => handleEditProgram(prog)}
+                                                className="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium text-zinc-300 hover:bg-zinc-800 hover:text-white rounded-lg transition-colors"
+                                            >
+                                                <Edit2 size={16} />
+                                                Edit Program
+                                            </button>
+                                            <button
+                                                onClick={() => {
+                                                    setDeleteConfirmId(prog.id);
+                                                    setOpenMenuId(null);
+                                                }}
+                                                className="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                                            >
+                                                <Trash2 size={16} />
+                                                Delete Program
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -166,6 +278,108 @@ const ManagePrograms = () => {
                                 <button type="submit" className="flex-1 py-3 rounded-xl bg-amber-500 text-black font-bold hover:bg-amber-400 transition-colors">Create Program</button>
                             </div>
                         </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Edit Program Modal */}
+            {isEditModalOpen && editingProgram && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-[#18181b] w-full max-w-lg rounded-2xl border border-zinc-800 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+                        <div className="p-6 border-b border-zinc-800 flex justify-between items-center bg-zinc-900/50">
+                            <h2 className="text-xl font-black text-white">Edit Program</h2>
+                            <button onClick={() => {
+                                setIsEditModalOpen(false);
+                                setEditingProgram(null);
+                            }} className="text-zinc-500 hover:text-white transition-colors">
+                                <X size={24} />
+                            </button>
+                        </div>
+                        <form onSubmit={handleUpdateProgram} className="p-6 space-y-4">
+                            <div>
+                                <label className="block text-sm font-bold text-zinc-400 mb-1.5">Program Name</label>
+                                <input
+                                    name="programName"
+                                    required
+                                    type="text"
+                                    defaultValue={editingProgram.name}
+                                    className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white focus:outline-none focus:border-amber-500 transition-colors"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-zinc-400 mb-1.5">University</label>
+                                <input
+                                    name="university"
+                                    required
+                                    type="text"
+                                    defaultValue={editingProgram.universityName}
+                                    className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white focus:outline-none focus:border-amber-500 transition-colors"
+                                />
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-bold text-zinc-400 mb-1.5">Country</label>
+                                    <input
+                                        name="country"
+                                        required
+                                        type="text"
+                                        defaultValue={editingProgram.location}
+                                        className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white focus:outline-none focus:border-amber-500 transition-colors"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-bold text-zinc-400 mb-1.5">Tuition (USD)</label>
+                                    <input
+                                        name="tuition"
+                                        required
+                                        type="number"
+                                        defaultValue={editingProgram.fees.replace(/[^0-9]/g, '')}
+                                        className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white focus:outline-none focus:border-amber-500 transition-colors"
+                                    />
+                                </div>
+                            </div>
+                            <div className="pt-4 flex gap-3">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setIsEditModalOpen(false);
+                                        setEditingProgram(null);
+                                    }}
+                                    className="flex-1 py-3 rounded-xl bg-zinc-800 text-zinc-300 font-bold hover:bg-zinc-700 transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                                <button type="submit" className="flex-1 py-3 rounded-xl bg-amber-500 text-black font-bold hover:bg-amber-400 transition-colors">
+                                    Update Program
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Delete Confirmation Dialog */}
+            {deleteConfirmId && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-[#18181b] w-full max-w-md rounded-2xl border border-zinc-800 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+                        <div className="p-6 border-b border-zinc-800">
+                            <h2 className="text-xl font-black text-white">Delete Program?</h2>
+                            <p className="text-sm text-zinc-400 mt-2">This action cannot be undone. The program will be permanently removed.</p>
+                        </div>
+                        <div className="p-6 flex gap-3">
+                            <button
+                                onClick={() => setDeleteConfirmId(null)}
+                                className="flex-1 py-3 rounded-xl bg-zinc-800 text-zinc-300 font-bold hover:bg-zinc-700 transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={() => handleDeleteProgram(deleteConfirmId)}
+                                className="flex-1 py-3 rounded-xl bg-red-600 text-white font-bold hover:bg-red-500 transition-colors"
+                            >
+                                Delete
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}

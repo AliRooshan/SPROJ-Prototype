@@ -41,7 +41,7 @@ const ProgramDetails = () => {
         // Corrected application object matching demoUserData schema and Tracker expectations
         const application = {
             programId: program.id,
-            university: program.name,
+            university: program.university,
             program: program.program,
             deadline: program.deadline,
             country: program.country,

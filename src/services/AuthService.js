@@ -37,6 +37,7 @@ const AuthService = {
             // Empty Data for new users - STRICT ISOLATION
             stats: { saved: 0, pending: 0, accepted: 0 },
             savedPrograms: [],
+            savedScholarships: [],
             applications: [],
             deadlines: [],
             checklist: []
@@ -156,6 +157,7 @@ const AuthService = {
 
         const user = users[userIndex];
         if (!user.applications) user.applications = [];
+        if (!user.deadlines) user.deadlines = [];
         if (!user.stats) user.stats = { saved: 0, pending: 0, accepted: 0 };
 
         const newApplication = {
@@ -167,6 +169,19 @@ const AuthService = {
 
         user.applications.push(newApplication);
         user.stats.pending += 1;
+
+        // Automatically create a deadline entry for this application
+        if (application.deadline) {
+            const newDeadline = {
+                id: Date.now() + 1, // Ensure unique ID
+                university: application.university, // University name as title
+                task: 'Application', // Just the type
+                date: application.deadline,
+                status: 'pending',
+                applicationId: newApplication.id // Link to application
+            };
+            user.deadlines.push(newDeadline);
+        }
 
         users[userIndex] = user;
         saveUsers(users);
@@ -218,6 +233,84 @@ const AuthService = {
         const currentUser = AuthService.getCurrentUser();
         return currentUser?.applications || [];
     },
+
+    // Toggle saved scholarship status
+    toggleSavedScholarship: (scholarship) => {
+        const currentUser = AuthService.getCurrentUser();
+        if (!currentUser) return false;
+
+        const users = getUsers();
+        const userIndex = users.findIndex(u => u.id === currentUser.id);
+        if (userIndex === -1) return false;
+
+        const user = users[userIndex];
+
+        // Initialize if missing
+        if (!user.savedScholarships) user.savedScholarships = [];
+
+        const existingIndex = user.savedScholarships.findIndex(s => s.id === scholarship.id);
+        let isSaved = false;
+
+        if (existingIndex > -1) {
+            // Remove
+            user.savedScholarships.splice(existingIndex, 1);
+            isSaved = false;
+        } else {
+            // Add
+            user.savedScholarships.push(scholarship);
+            isSaved = true;
+        }
+
+        users[userIndex] = user;
+        saveUsers(users);
+
+        // Update session
+        localStorage.setItem(SESSION_KEY, JSON.stringify(user));
+        localStorage.setItem('studentProfile', JSON.stringify(user));
+
+        return isSaved;
+    },
+
+    // Check if scholarship is saved
+    isScholarshipSaved: (scholarshipId) => {
+        const currentUser = AuthService.getCurrentUser();
+        if (!currentUser || !currentUser.savedScholarships) return false;
+        return currentUser.savedScholarships.some(s => s.id === scholarshipId);
+    },
+
+    // Get saved scholarships
+    getSavedScholarships: () => {
+        const currentUser = AuthService.getCurrentUser();
+        return currentUser?.savedScholarships || [];
+    },
+
+    // Add deadline when application is started
+    addDeadline: (deadline) => {
+        const currentUser = AuthService.getCurrentUser();
+        if (!currentUser) return null;
+
+        const users = getUsers();
+        const userIndex = users.findIndex(u => u.id === currentUser.id);
+        if (userIndex === -1) return null;
+
+        const user = users[userIndex];
+        if (!user.deadlines) user.deadlines = [];
+
+        // Check if deadline already exists
+        const exists = user.deadlines.some(d => d.title === deadline.title);
+        if (!exists) {
+            user.deadlines.push(deadline);
+            users[userIndex] = user;
+            saveUsers(users);
+
+            // Update session
+            localStorage.setItem(SESSION_KEY, JSON.stringify(user));
+            localStorage.setItem('studentProfile', JSON.stringify(user));
+        }
+
+        return deadline;
+    },
+
 
     logout: () => {
         localStorage.removeItem(SESSION_KEY);

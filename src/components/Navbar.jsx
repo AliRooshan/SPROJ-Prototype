@@ -1,13 +1,18 @@
 import React, { useState } from 'react';
 import { NavLink, Link, useNavigate } from 'react-router-dom';
 import { Compass, BookOpen, CreditCard, Plane, User, LayoutDashboard, LogOut, Menu, X } from 'lucide-react';
+import ConfirmDialog from './ConfirmDialog';
 
 const Navbar = () => {
     const navigate = useNavigate();
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+    const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
     const handleLogout = () => {
-        // Clear pseudo-session
+        setShowLogoutConfirm(true);
+    };
+
+    const confirmLogout = () => {
         navigate('/');
     };
 
@@ -117,6 +122,16 @@ const Navbar = () => {
                     </div>
                 </div>
             )}
+
+            <ConfirmDialog
+                isOpen={showLogoutConfirm}
+                onClose={() => setShowLogoutConfirm(false)}
+                onConfirm={confirmLogout}
+                title="Sign Out"
+                message="Are you sure you want to sign out? You'll need to log in again to access your account."
+                confirmText="Sign Out"
+                cancelText="Cancel"
+            />
         </nav>
     );
 };

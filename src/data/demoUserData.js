@@ -112,9 +112,9 @@ export const demoUserData = {
 
     // Deadlines
     deadlines: [
-        { id: 1, title: 'Imperial College London', date: '2026-03-15', type: 'Application' },
-        { id: 2, title: 'DAAD Scholarship', date: '2026-04-01', type: 'Scholarship' },
-        { id: 3, title: 'Visa Appointment', date: '2026-05-10', type: 'Visa' },
+        { id: 1, university: 'Imperial College London', task: 'Application', date: '2026-03-15', status: 'pending' },
+        { id: 2, university: 'DAAD Scholarship', task: 'Scholarship', date: '2026-04-01', status: 'pending' },
+        { id: 3, university: 'Visa Appointment', task: 'Visa', date: '2026-05-10', status: 'pending' },
     ],
 
     // Checklist
@@ -122,6 +122,40 @@ export const demoUserData = {
         { id: 1, task: 'Upload Passport', completed: true },
         { id: 2, task: 'Complete Profile', completed: true },
         { id: 3, task: 'Submit Transcript', completed: false }
+    ],
+
+    // Saved Scholarships
+    savedScholarships: [
+        {
+            id: 2,
+            name: "DAAD Study Scholarship",
+            provider: "German Academic Exchange Service",
+            amount: "€861 / month",
+            deadline: "2026-11-15",
+            country: "Germany",
+            type: "Need-based",
+            status: "Eligible"
+        },
+        {
+            id: 5,
+            name: "Chevening Scholarship",
+            provider: "UK Government",
+            amount: "Full Funding",
+            deadline: "2026-11-07",
+            country: "UK",
+            type: "Leadership",
+            status: "Eligible"
+        },
+        {
+            id: 10,
+            name: "Erasmus Mundus Joint Master",
+            provider: "European Union",
+            amount: "€1,400 / month",
+            deadline: "2027-02-15",
+            country: "Europe",
+            type: "Mobility",
+            status: "Eligible"
+        }
     ],
 
     // Stats

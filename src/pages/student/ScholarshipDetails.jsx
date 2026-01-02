@@ -2,18 +2,30 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { MapPin, Calendar, DollarSign, Clock, CheckCircle, Bookmark, ExternalLink, ChevronLeft, Building2, GraduationCap, Globe, Award, Sparkles } from 'lucide-react';
 import scholarshipsData from '../../data/scholarships.json';
+import AuthService from '../../services/AuthService';
 
 const ScholarshipDetails = () => {
     const { id } = useParams();
     const navigate = useNavigate();
     const [scholarship, setScholarship] = useState(null);
+    const [isSaved, setIsSaved] = useState(false);
 
     useEffect(() => {
         const found = scholarshipsData.find(s => s.id === parseInt(id));
         setScholarship(found);
+
+        // Check if scholarship is already saved
+        if (found) {
+            setIsSaved(AuthService.isScholarshipSaved(found.id));
+        }
     }, [id]);
 
     if (!scholarship) return <div className="p-12 text-center text-slate-500 font-bold animate-pulse">Loading scholarship details...</div>;
+
+    const handleSaveScholarship = () => {
+        const newSavedState = AuthService.toggleSavedScholarship(scholarship);
+        setIsSaved(newSavedState);
+    };
 
     return (
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 pb-12 max-w-6xl mx-auto space-y-6">
@@ -133,10 +145,14 @@ const ScholarshipDetails = () => {
                                 Visit Official Website
                             </button>
                             <button
-                                className="w-full py-4 border-2 border-slate-100 bg-slate-50 text-slate-600 font-bold rounded-2xl hover:bg-white hover:border-emerald-200 hover:text-emerald-700 hover:shadow-md transition-all flex items-center justify-center gap-3"
+                                onClick={handleSaveScholarship}
+                                className={`w-full py-4 border-2 font-bold rounded-2xl hover:shadow-md transition-all flex items-center justify-center gap-3 ${isSaved
+                                    ? 'bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100'
+                                    : 'bg-slate-50 border-slate-100 text-slate-600 hover:bg-white hover:border-emerald-200 hover:text-emerald-700'
+                                    }`}
                             >
-                                <Bookmark size={20} />
-                                Save Scholarship
+                                <Bookmark size={20} className={isSaved ? 'fill-current' : ''} />
+                                {isSaved ? 'Saved' : 'Save Scholarship'}
                             </button>
                         </div>
 
