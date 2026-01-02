@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Clock, TrendingUp, AlertCircle, Search, Sparkles, BookmarkCheck, Target, Award, ArrowRight, Zap, GraduationCap, DollarSign } from 'lucide-react';
+import { Clock, TrendingUp, AlertCircle, Search, Sparkles, BookmarkCheck, Target, Award, ArrowRight, GraduationCap, DollarSign, Wallet, Home, Coffee, Bus } from 'lucide-react';
 import ProgramCard from '../../components/ProgramCard';
 import DocumentChecklist from '../../components/DocumentChecklist';
 import AuthService from '../../services/AuthService';
@@ -297,32 +297,58 @@ const StudentDashboard = () => {
                         <DocumentChecklist compact={true} />
                     </div>
 
-                    {/* Cost Snapshot Widget - Glass Redesign */}
-                    <div className="bg-white/80 backdrop-blur-3xl border border-white/50 p-6 rounded-[2.5rem] shadow-xl relative overflow-hidden group">
-                        <div className="absolute top-0 right-0 w-32 h-32 bg-purple-100/50 rounded-full blur-3xl -mr-10 -mt-10 group-hover:bg-purple-100 transition-all"></div>
+                    {/* Mini Cost Estimator Widget */}
+                    <div
+                        onClick={() => navigate('/student/cost')}
+                        className="bg-gradient-to-br from-indigo-900 via-purple-900 to-indigo-900 p-6 rounded-[2.5rem] shadow-xl relative overflow-hidden group cursor-pointer border border-indigo-500/30 ring-1 ring-white/10 hover:ring-white/20 transition-all"
+                    >
+                        {/* Background Noise/Decoration */}
+                        <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-soft-light"></div>
+                        <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500/30 rounded-full blur-3xl -mr-10 -mt-10 animate-pulse"></div>
+                        <div className="absolute bottom-0 left-0 w-24 h-24 bg-indigo-500/30 rounded-full blur-3xl -ml-10 -mb-10"></div>
 
-                        <div className="relative z-10 space-y-4">
-                            <div className="flex items-center gap-3">
-                                <div className="p-3 bg-purple-50 text-purple-600 rounded-2xl shadow-sm group-hover:scale-110 transition-transform">
-                                    <Zap size={24} className="fill-current" />
+                        <div className="relative z-10 space-y-5">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10 border border-white/20 backdrop-blur-md">
+                                    <Wallet size={14} className="text-indigo-300" />
+                                    <span className="text-[10px] font-bold text-indigo-100 uppercase tracking-widest">Monthly Cost</span>
                                 </div>
-                                <div>
-                                    <h3 className="font-black text-xl text-slate-800">Annual Cost</h3>
-                                    <p className="text-xs font-bold text-purple-400 uppercase tracking-widest">Estimated</p>
+                                <div className="text-[10px] font-bold text-white bg-white/10 px-3 py-1 rounded-full border border-white/20 hover:bg-white/20 transition-colors">
+                                    $ CONVERT TO PKR
                                 </div>
                             </div>
 
-                            <div className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-indigo-600 tracking-tighter py-2">
-                                $32,500
+                            <div>
+                                <div className="text-5xl font-black text-white tracking-tighter mb-1 drop-shadow-lg">
+                                    GBP 1,320
+                                </div>
+                                <p className="text-indigo-200 font-medium text-sm">for <span className="text-white border-b-2 border-indigo-400 pb-0.5">London</span></p>
                             </div>
 
-                            <button
-                                onClick={() => navigate('/student/cost')}
-                                className="w-full py-4 bg-purple-50 hover:bg-purple-100 border border-purple-100 rounded-xl text-purple-700 font-bold transition flex items-center justify-center gap-2 group/btn shadow-sm"
-                            >
-                                View Breakdown
-                                <ArrowRight size={18} className="group-hover/btn:translate-x-1 transition-transform" />
-                            </button>
+                            <div className="space-y-2.5 pt-1">
+                                {/* Breakdown Items */}
+                                <div className="flex items-center justify-between p-2.5 rounded-2xl bg-white/5 border border-white/5 hover:bg-white/10 transition-colors group/item">
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-2 bg-indigo-500/20 rounded-xl group-hover/item:scale-110 transition-transform"><Home size={16} className="text-indigo-300" /></div>
+                                        <span className="text-xs text-indigo-100 font-bold">Accommodation</span>
+                                    </div>
+                                    <span className="text-sm font-bold text-white tracking-tight">GBP 960</span>
+                                </div>
+                                <div className="flex items-center justify-between p-2.5 rounded-2xl bg-white/5 border border-white/5 hover:bg-white/10 transition-colors group/item">
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-2 bg-emerald-500/20 rounded-xl group-hover/item:scale-110 transition-transform"><Coffee size={16} className="text-emerald-300" /></div>
+                                        <span className="text-xs text-indigo-100 font-bold">Food & Groceries</span>
+                                    </div>
+                                    <span className="text-sm font-bold text-white tracking-tight">GBP 240</span>
+                                </div>
+                                <div className="flex items-center justify-between p-2.5 rounded-2xl bg-white/5 border border-white/5 hover:bg-white/10 transition-colors group/item">
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-2 bg-amber-500/20 rounded-xl group-hover/item:scale-110 transition-transform"><Bus size={16} className="text-amber-300" /></div>
+                                        <span className="text-xs text-indigo-100 font-bold">Transport</span>
+                                    </div>
+                                    <span className="text-sm font-bold text-white tracking-tight">GBP 120</span>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
