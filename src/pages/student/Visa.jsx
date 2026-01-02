@@ -195,10 +195,7 @@ const VisaGuidance = () => {
                                 <p className="font-medium leading-tight">Requirements change frequently. Always verify.</p>
                             </div>
 
-                            <button className="w-full py-4 bg-slate-900 text-white font-bold rounded-xl hover:bg-blue-600 transition-all shadow-lg flex items-center justify-center gap-2 group">
-                                <Download size={18} />
-                                Download PDF
-                            </button>
+
                         </div>
                     </div>
                 </div>

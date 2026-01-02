@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { CheckCircle, Circle, FileText } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 const DocumentChecklist = ({ compact = false }) => {
+    const navigate = useNavigate();
     const [documents, setDocuments] = useState([
         { id: 1, name: 'Passport Copy', status: 'completed' },
         { id: 2, name: 'Academic Transcripts', status: 'completed' },
@@ -49,7 +51,10 @@ const DocumentChecklist = ({ compact = false }) => {
             </div>
             {compact && (
                 <div className="mt-4 pt-3 border-t border-slate-100 text-center">
-                    <span className="text-sm text-primary font-medium hover:underline cursor-pointer">
+                    <span
+                        onClick={() => navigate('/student/documents')}
+                        className="text-sm text-primary font-medium hover:underline cursor-pointer"
+                    >
                         View all documents
                     </span>
                 </div>

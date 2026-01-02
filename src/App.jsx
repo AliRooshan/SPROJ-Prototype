@@ -25,6 +25,7 @@ import Scholarships from './pages/student/Scholarships';
 import ScholarshipDetails from './pages/student/ScholarshipDetails';
 import SavedPrograms from './pages/student/SavedPrograms';
 import SavedScholarships from './pages/student/SavedScholarships';
+import Documents from './pages/student/Documents';
 
 // Admin Pages
 import AdminDashboard from './pages/admin/Dashboard';
@@ -61,6 +62,7 @@ function App() {
           <Route path="cost" element={<CostEstimator />} />
           <Route path="visa" element={<VisaGuidance />} />
           <Route path="profile" element={<StudentProfile />} />
+          <Route path="documents" element={<Documents />} />
         </Route>
 
         {/* Admin Routes */}
