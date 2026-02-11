@@ -94,7 +94,7 @@ const LoginStudent = () => {
                                         value={formData.fullName}
                                         onChange={handleChange}
                                         className="block w-full pl-10 sm:text-sm bg-midnight-paper border border-white/10 rounded-xl py-3 text-white placeholder-slate-500 focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
-                                        placeholder="John Doe"
+                                        placeholder="Enter your full name"
                                     />
                                 </div>
                             </div>

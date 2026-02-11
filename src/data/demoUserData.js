@@ -3,7 +3,7 @@
 
 export const demoUserData = {
     email: 'alirooshan@gmail.com',
-    password: 'babayaga',
+    password: 'student',
     fullName: 'Ali Rooshan',
     phone: '+92 3114679669',
     degree: 'Bachelors',

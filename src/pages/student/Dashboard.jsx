@@ -18,7 +18,7 @@ const StudentDashboard = () => {
             setSavedPrograms(currentUser.savedPrograms || []);
             setSavedScholarships(currentUser.savedScholarships || []);
         } else {
-            navigate('/login/student');
+            navigate('/login');
         }
     }, [navigate]);
 

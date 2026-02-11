@@ -12,7 +12,7 @@ const AdminSidebar = ({ isOpen, onClose }) => {
     };
 
     const confirmLogout = () => {
-        navigate('/');
+        navigate('/login');
     };
 
     const navItems = [

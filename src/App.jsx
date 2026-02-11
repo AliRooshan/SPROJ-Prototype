@@ -10,7 +10,7 @@ import AdminLayout from './layouts/AdminLayout';
 // Common Pages
 import Landing from './pages/Landing';
 import Auth from './pages/auth/Auth';
-import LoginAdmin from './pages/auth/LoginAdmin';
+
 
 // Student Pages
 import ProfileSetup from './pages/student/ProfileSetup';
@@ -42,8 +42,7 @@ function App() {
         {/* Public Routes */}
         <Route element={<PublicLayout />}>
           <Route path="/" element={<Landing />} />
-          <Route path="/login/student" element={<Auth />} />
-          <Route path="/login/admin" element={<LoginAdmin />} />
+          <Route path="/login" element={<Auth />} />
           <Route path="/explore" element={<Explore isGuest={true} />} />
         </Route>
 

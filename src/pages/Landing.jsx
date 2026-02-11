@@ -35,7 +35,7 @@ const Landing = () => {
                     </p>
 
                     <div className="flex flex-col sm:flex-row items-center justify-center gap-6 animate-in fade-in slide-in-from-bottom-8 duration-700 delay-300">
-                        <Link to="/login/student" className="group relative px-8 py-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-black rounded-full text-lg overflow-hidden transition-transform hover:scale-105 shadow-glow">
+                        <Link to="/login" state={{ isSignUp: true }} className="group relative px-8 py-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-black rounded-full text-lg overflow-hidden transition-transform hover:scale-105 shadow-glow">
                             <div className="absolute inset-0 bg-gradient-to-r from-purple-600 to-pink-600 opacity-0 group-hover:opacity-100 transition-opacity"></div>
                             <span className="relative flex items-center gap-2">
                                 Start Now <ArrowRight size={20} />
@@ -320,8 +320,8 @@ const Landing = () => {
                                 <h3 className="font-bold text-slate-900 mb-4 text-sm uppercase tracking-wider">Quick Links</h3>
                                 <ul className="space-y-3">
                                     <li><Link to="/explore" className="text-slate-600 hover:text-indigo-600 transition-colors">Explore Programs</Link></li>
-                                    <li><Link to="/login/student" className="text-slate-600 hover:text-indigo-600 transition-colors">Student Login</Link></li>
-                                    <li><Link to="/login/admin" className="text-slate-600 hover:text-indigo-600 transition-colors">Admin Portal</Link></li>
+                                    <li><Link to="/login" className="text-slate-600 hover:text-indigo-600 transition-colors">Sign In</Link></li>
+                                    <li><Link to="/login" state={{ isSignUp: true }} className="text-slate-600 hover:text-indigo-600 transition-colors">Sign Up</Link></li>
                                     <li><a href="#" className="text-slate-600 hover:text-indigo-600 transition-colors">About Us</a></li>
                                 </ul>
                             </div>

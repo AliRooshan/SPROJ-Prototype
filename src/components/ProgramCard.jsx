@@ -8,7 +8,7 @@ const ProgramCard = ({ program, isGuest = false, isSaved = false, onToggleSave }
 
     const handleDetailsClick = () => {
         if (isGuest) {
-            navigate('/login/student');
+            navigate('/login');
         } else {
             navigate(`/student/program/${program.id}`);
         }
@@ -16,6 +16,10 @@ const ProgramCard = ({ program, isGuest = false, isSaved = false, onToggleSave }
 
     const handleSaveClick = (e) => {
         e.stopPropagation(); // Prevent card click
+        if (isGuest) {
+            navigate('/login');
+            return;
+        }
         if (onToggleSave) onToggleSave(program);
     };
 
@@ -43,12 +47,14 @@ const ProgramCard = ({ program, isGuest = false, isSaved = false, onToggleSave }
                     {program.matchScore}% Match
                 </div>
 
-                <button
-                    onClick={handleSaveClick}
-                    className={`absolute top-3 left-3 p-2 backdrop-blur-md rounded-full transition z-20 border-2 shadow-md ${isSaved ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white/95 text-slate-600 hover:bg-indigo-600 hover:text-white border-indigo-200 hover:border-indigo-600'}`}
-                >
-                    <Bookmark size={16} className={isSaved ? "fill-current" : ""} />
-                </button>
+                {!isGuest && (
+                    <button
+                        onClick={handleSaveClick}
+                        className={`absolute top-3 left-3 p-2 backdrop-blur-md rounded-full transition z-20 border-2 shadow-md ${isSaved ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white/95 text-slate-600 hover:bg-indigo-600 hover:text-white border-indigo-200 hover:border-indigo-600'}`}
+                    >
+                        <Bookmark size={16} className={isSaved ? "fill-current" : ""} />
+                    </button>
+                )}
             </div>
 
             <div className="p-5 flex-grow flex flex-col relative z-20">

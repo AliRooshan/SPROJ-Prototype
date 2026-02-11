@@ -1,12 +1,19 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Mail, Lock, User, Phone, GraduationCap, Sparkles, ArrowRight, Eye, EyeOff } from 'lucide-react';
 import AuthService from '../../services/AuthService';
 
 const Auth = () => {
     const navigate = useNavigate();
-    const [isSignUp, setIsSignUp] = useState(false);
+    const location = useLocation();
+    const [isSignUp, setIsSignUp] = useState(location.state?.isSignUp || false);
+
+    // Update state when location changes (e.g. clicking header links)
+    React.useEffect(() => {
+        setIsSignUp(location.state?.isSignUp || false);
+    }, [location.state]);
+
     const [showPassword, setShowPassword] = useState(false);
     const [formData, setFormData] = useState({
         email: '',
@@ -32,6 +39,13 @@ const Auth = () => {
                 await AuthService.register(formData);
                 navigate('/student/profile-setup');
             } else {
+                // Admin Login Check
+                if (formData.email === 'admin@gmail.com' && formData.password === 'edvoyageadmin') {
+                    navigate('/admin/dashboard');
+                    return;
+                }
+
+                // Student/Regular User Login
                 await AuthService.login(formData.email, formData.password);
                 navigate('/student/dashboard');
             }
@@ -229,7 +243,6 @@ const Auth = () => {
                                                 onChange={handleInputChange}
                                                 required={isSignUp}
                                                 className="w-full pl-12 pr-4 py-3.5 bg-white border-2 border-indigo-100 rounded-xl focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 outline-none transition-all text-slate-900 font-medium placeholder-slate-400"
-                                                placeholder="John Doe"
                                             />
                                         </div>
                                     </motion.div>

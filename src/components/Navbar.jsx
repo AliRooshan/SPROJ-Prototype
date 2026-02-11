@@ -13,7 +13,7 @@ const Navbar = () => {
     };
 
     const confirmLogout = () => {
-        navigate('/');
+        navigate('/login');
     };
 
     const navItems = [
