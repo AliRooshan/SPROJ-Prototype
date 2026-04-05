@@ -9,7 +9,7 @@ const CostEstimator = () => {
     const [showPKR, setShowPKR] = useState(false);
 
     useEffect(() => {
-        fetch('/api/costs')
+        fetch('https://sproj-backend-x1wg.onrender.com/api/costs')
             .then(res => res.json())
             .then(data => {
                 setCostsData(data);

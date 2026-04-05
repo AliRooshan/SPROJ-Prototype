@@ -10,7 +10,7 @@ const Scholarships = () => {
     const [filterType, setFilterType] = useState('All');
 
     useEffect(() => {
-        fetch('/api/scholarships')
+        fetch('https://sproj-backend-x1wg.onrender.com/api/scholarships')
             .then(res => res.json())
             .then(data => setScholarships(data))
             .catch(err => console.error('Failed to load scholarships:', err));

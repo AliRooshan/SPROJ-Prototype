@@ -15,7 +15,7 @@ const ProgramDetails = () => {
         const currentUser = AuthService.getCurrentUser();
         setUser(currentUser);
 
-        fetch(`/api/programs/${id}`)
+        fetch(`https://sproj-backend-x1wg.onrender.com/api/programs/${id}`)
             .then(res => res.json())
             .then(data => {
                 setProgram(data);

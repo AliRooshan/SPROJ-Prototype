@@ -16,7 +16,7 @@ const Explore = ({ isGuest = false }) => {
     const [savedProgramIds, setSavedProgramIds] = useState([]);
 
     useEffect(() => {
-        fetch('/api/programs')
+        fetch('https://sproj-backend-x1wg.onrender.com/api/scholarships')
             .then(res => res.json())
             .then(data => { setPrograms(data); setLoading(false); })
             .catch(() => setLoading(false));

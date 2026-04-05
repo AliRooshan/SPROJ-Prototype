@@ -11,7 +11,7 @@ const ScholarshipDetails = () => {
     const [isSaved, setIsSaved] = useState(false);
 
     useEffect(() => {
-        fetch(`/api/scholarships/${id}`)
+        fetch(`https://sproj-backend-x1wg.onrender.com/api/scholarships/${id}`)
             .then(res => res.json())
             .then(data => {
                 setScholarship(data);
