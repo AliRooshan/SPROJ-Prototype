@@ -5,7 +5,9 @@
  * - Throws an Error with the server's error message on failure
  */
 
-const BASE = import.meta.env.VITE_API_URL || '/api';
+let BASE = import.meta.env.VITE_API_URL || '/api';
+if (BASE.endsWith('/')) BASE = BASE.slice(0, -1);
+if (!BASE.endsWith('/api')) BASE += '/api';
 
 const getToken = () => localStorage.getItem('edvoyage_token');
 
