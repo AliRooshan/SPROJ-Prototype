@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { MoreHorizontal, Calendar, ArrowRight, CheckCircle, XCircle, Clock, Bookmark, Send, Plus, Target, Rocket } from 'lucide-react';
+import { MoreHorizontal, Calendar, ArrowRight, CheckCircle, XCircle, Clock, Bookmark, Plus, Rocket } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import AuthService from '../../services/AuthService';
 

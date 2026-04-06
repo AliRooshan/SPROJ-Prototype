@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Search, Filter, MapPin, SlidersHorizontal, ArrowUpDown, X, Globe, Clock, Sparkles } from 'lucide-react';
 import ProgramCard from '../../components/ProgramCard';
 import AuthService from '../../services/AuthService';
+import api from '../../services/api';
 
 const Explore = ({ isGuest = false }) => {
     const [programs, setPrograms] = useState([]);
@@ -16,8 +17,7 @@ const Explore = ({ isGuest = false }) => {
     const [savedProgramIds, setSavedProgramIds] = useState([]);
 
     useEffect(() => {
-        fetch('https://sproj-backend-x1wg.onrender.com/api/programs')
-            .then(res => res.json())
+        api.get('/programs')
             .then(data => { setPrograms(data); setLoading(false); })
             .catch(() => setLoading(false));
 

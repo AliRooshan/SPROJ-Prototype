@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { MapPin, Calendar, DollarSign, Clock, CheckCircle, Bookmark, ExternalLink, ChevronLeft, Building2, GraduationCap, Globe, Award, Sparkles } from 'lucide-react';
 import AuthService from '../../services/AuthService';
-
+import api from '../../services/api';
 
 const ScholarshipDetails = () => {
     const { id } = useParams();
@@ -11,8 +11,7 @@ const ScholarshipDetails = () => {
     const [isSaved, setIsSaved] = useState(false);
 
     useEffect(() => {
-        fetch(`https://sproj-backend-x1wg.onrender.com/api/scholarships/${id}`)
-            .then(res => res.json())
+        api.get(`/scholarships/${id}`)
             .then(data => {
                 setScholarship(data);
                 setIsSaved(AuthService.isScholarshipSaved(data.id));

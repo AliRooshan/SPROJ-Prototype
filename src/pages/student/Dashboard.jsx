@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Clock, TrendingUp, AlertCircle, Search, Sparkles, BookmarkCheck, Target, Award, ArrowRight, GraduationCap, DollarSign, Wallet, Home, Coffee, Bus } from 'lucide-react';
+import { Clock, Search, Sparkles, BookmarkCheck, Target, Award, ArrowRight, GraduationCap, DollarSign, Wallet, Home, Coffee, Bus } from 'lucide-react';
 import ProgramCard from '../../components/ProgramCard';
 import DocumentChecklist from '../../components/DocumentChecklist';
 import AuthService from '../../services/AuthService';

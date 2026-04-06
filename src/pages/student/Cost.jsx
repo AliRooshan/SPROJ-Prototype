@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { DollarSign, Home, Coffee, Bus, Info, Wallet, Calculator, Globe } from 'lucide-react';
-
+import api from '../../services/api';
 
 const CostEstimator = () => {
     const [costsData, setCostsData] = useState([]);
@@ -9,8 +9,7 @@ const CostEstimator = () => {
     const [showPKR, setShowPKR] = useState(false);
 
     useEffect(() => {
-        fetch('https://sproj-backend-x1wg.onrender.com/api/costs')
-            .then(res => res.json())
+        api.get('/costs')
             .then(data => {
                 setCostsData(data);
                 if (data.length > 0) setSelectedCity(data[0].city);

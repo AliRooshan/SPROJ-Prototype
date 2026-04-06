@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { MapPin, Calendar, DollarSign, Clock, CheckCircle, Bookmark, PlusCircle, ChevronLeft, Building2, GraduationCap, Globe } from 'lucide-react';
 import AuthService from '../../services/AuthService';
-
+import api from '../../services/api';
 
 const ProgramDetails = () => {
     const { id } = useParams();
@@ -15,8 +15,7 @@ const ProgramDetails = () => {
         const currentUser = AuthService.getCurrentUser();
         setUser(currentUser);
 
-        fetch(`https://sproj-backend-x1wg.onrender.com/api/programs/${id}`)
-            .then(res => res.json())
+        api.get(`/programs/${id}`)
             .then(data => {
                 setProgram(data);
                 if (currentUser) {

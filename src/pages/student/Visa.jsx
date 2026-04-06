@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plane, FileText, CheckCircle, Calendar, Globe, ArrowRight, Shield, Download, AlertCircle, Landmark, GraduationCap, Stethoscope, Banknote, Square, CheckSquare } from 'lucide-react';
+import { Plane, FileText, CheckCircle, Calendar, Globe, ArrowRight, Shield, AlertCircle, Landmark, GraduationCap, Stethoscope, Banknote, Square } from 'lucide-react';
 
 const VisaGuidance = () => {
     const [selectedCountry, setSelectedCountry] = useState('UK');

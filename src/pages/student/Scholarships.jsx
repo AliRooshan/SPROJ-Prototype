@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Filter, Award, CheckCircle, XCircle, GraduationCap, DollarSign, Sparkles, MapPin, ArrowRight, Building2 } from 'lucide-react';
+import { Search, Filter, Award, CheckCircle, XCircle, DollarSign, Sparkles, MapPin, ArrowRight, Building2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import api from '../../services/api';
 
 
 const Scholarships = () => {
@@ -10,8 +11,7 @@ const Scholarships = () => {
     const [filterType, setFilterType] = useState('All');
 
     useEffect(() => {
-        fetch('https://sproj-backend-x1wg.onrender.com/api/scholarships')
-            .then(res => res.json())
+        api.get('/scholarships')
             .then(data => setScholarships(data))
             .catch(err => console.error('Failed to load scholarships:', err));
     }, []);

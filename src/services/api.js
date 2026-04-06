@@ -5,7 +5,7 @@
  * - Throws an Error with the server's error message on failure
  */
 
-const BASE = 'https://sproj-backend-x1wg.onrender.com/api';
+const BASE = import.meta.env.VITE_API_URL || '/api';
 
 const getToken = () => localStorage.getItem('edvoyage_token');
 
