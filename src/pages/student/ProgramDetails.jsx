@@ -78,6 +78,7 @@ const ProgramDetails = () => {
             setExistingApplication(null);
         } catch (err) {
             console.error('Failed to cancel application:', err.message);
+            throw err;
         }
     };
 

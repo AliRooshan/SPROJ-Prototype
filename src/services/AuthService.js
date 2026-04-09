@@ -146,6 +146,18 @@ const updateProfile = async (formData) => {
   return updatedUser;
 };
 
+const updateAccountBasics = async ({ fullName, phone }) => {
+  const user = getCurrentUser();
+  if (!user) throw new Error('Not authenticated');
+  const response = await api.put('/auth/me', {
+    full_name: fullName,
+    phone: phone ?? null
+  });
+  const updatedUser = response.user ?? response;
+  updateSession({ ...user, ...updatedUser, id: user.id });
+  return updatedUser;
+};
+
 // ── Saved Programs ─────────────────────────────────────────────────────────────
 
 const getSavedPrograms = async () => {
@@ -275,6 +287,14 @@ const deleteApplication = async (applicationId) => {
   return api.delete(`/users/${user.id}/applications/${applicationId}`);
 };
 
+const changePassword = async ({ currentPassword, newPassword, confirmPassword }) => {
+  return api.put('/auth/change-password', {
+    current_password: currentPassword,
+    new_password: newPassword,
+    confirm_password: confirmPassword,
+  });
+};
+
 // ── Export ─────────────────────────────────────────────────────────────────────
 
 const AuthService = {
@@ -286,6 +306,7 @@ const AuthService = {
   isAuthenticated,
   getUserProfile,
   updateProfile,
+  updateAccountBasics,
   // Programs
   getSavedPrograms,
   isProgramSaved,
@@ -299,6 +320,7 @@ const AuthService = {
   addApplication,
   updateApplicationStatus,
   deleteApplication,
+  changePassword,
 };
 
 export default AuthService;

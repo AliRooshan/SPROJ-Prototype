@@ -1,62 +1,187 @@
-import React, { useState, useEffect } from 'react';
-import { DollarSign, RefreshCw, Save, MapPin, Plus, X } from 'lucide-react';
+import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
+import { Save, MapPin, Plus, X, Filter, Trash2 } from 'lucide-react';
 import api from '../../services/api';
+import ConfirmDialog from '../../components/ConfirmDialog';
+
+const LIFESTYLE_OPTIONS = ['low', 'medium', 'high'];
 
 const ManageCosts = () => {
-    const [cities, setCities] = useState([]);
-    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [costRows, setCostRows] = useState([]);
+    const [countries, setCountries] = useState([]);
+    const [universities, setUniversities] = useState([]);
+    const [currencies, setCurrencies] = useState([]);
+    const [selectedLifestyle, setSelectedLifestyle] = useState('medium');
+    const [selectedCountry, setSelectedCountry] = useState('All');
+    const [showFilterDropdown, setShowFilterDropdown] = useState(false);
+    const [deleteConfirmId, setDeleteConfirmId] = useState(null);
+    const [saveToast, setSaveToast] = useState(null);
+    const saveToastTimerRef = useRef(null);
+    const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
+    const [newLivingCost, setNewLivingCost] = useState({
+        city: '',
+        lifestyle: 'medium',
+        rent: '',
+        food: '',
+        transport: '',
+        currency: ''
+    });
+    const [costErrorMsg, setCostErrorMsg] = useState('');
 
-    const loadCosts = () => {
-        api.get('/costs')
-            .then(data => setCities(data))
-            .catch(console.error);
+    const showSaveToast = useCallback((message) => {
+        setSaveToast(message);
+        if (saveToastTimerRef.current) clearTimeout(saveToastTimerRef.current);
+        saveToastTimerRef.current = setTimeout(() => setSaveToast(null), 2600);
+    }, []);
+
+    useEffect(() => {
+        return () => {
+            if (saveToastTimerRef.current) clearTimeout(saveToastTimerRef.current);
+        };
+    }, []);
+
+    const loadCosts = async () => {
+        const costsData = await api.get('/costs');
+        setCostRows(
+            costsData.map((row) => ({
+                ...row,
+                rent: Number(row.rent ?? row.rent_monthly ?? 0),
+                food: Number(row.food ?? row.food_monthly ?? 0),
+                transport: Number(row.transport ?? row.transport_monthly ?? 0)
+            }))
+        );
     };
 
     useEffect(() => {
-        loadCosts();
+        loadCosts().catch(console.error);
+        api.get('/scholarships/countries')
+            .then(setCountries)
+            .catch(console.error);
+        api.get('/programs/universities')
+            .then(setUniversities)
+            .catch(console.error);
+        api.get('/programs/currencies')
+            .then(setCurrencies)
+            .catch(console.error);
     }, []);
 
-    const handleAddExchangeRate = async (e) => {
-        e.preventDefault();
-        const formData = new FormData(e.target);
-        try {
-            const cityName = formData.get('city');
-            const countryName = formData.get('country');
-            const existing = cities.find(
-                c => (c.city || '').toLowerCase() === String(cityName).toLowerCase()
-                  && (c.country || '').toLowerCase() === String(countryName).toLowerCase()
-            );
-            if (!existing) {
-                alert('City/country does not exist in reference data. Please seed it in backend first.');
-                return;
-            }
+    const availableCountries = useMemo(
+        () => ['All', ...new Set(costRows.map((r) => r.country).filter(Boolean))],
+        [costRows]
+    );
 
-            await api.put(`/costs/${existing.id}`, {
-                city: cityName,
-                country: countryName,
-                currency: formData.get('currency'),
-                rent: parseInt(formData.get('rent'), 10),
-                food: parseInt(formData.get('food'), 10),
-                transport: parseInt(formData.get('transport'), 10)
+    const filteredCosts = useMemo(
+        () =>
+            costRows.filter((row) => {
+                const lifestyleMatch = String(row.lifestyle || '').toLowerCase() === selectedLifestyle;
+                const countryMatch = selectedCountry === 'All' || row.country === selectedCountry;
+                return lifestyleMatch && countryMatch;
+            }),
+        [costRows, selectedLifestyle, selectedCountry]
+    );
+
+    const citiesWithUniversities = useMemo(() => {
+        const names = universities
+            .map((u) => u.city)
+            .filter(Boolean);
+        return [...new Set(names)].sort((a, b) => a.localeCompare(b));
+    }, [universities]);
+
+    const openAddModal = () => {
+        setCostErrorMsg('');
+        setNewLivingCost({
+            city: '',
+            lifestyle: selectedLifestyle,
+            rent: '',
+            food: '',
+            transport: '',
+            currency: currencies[0] || ''
+        });
+        setIsAddModalOpen(true);
+    };
+
+    const closeAddModal = () => {
+        setIsAddModalOpen(false);
+        setCostErrorMsg('');
+        setIsSaving(false);
+    };
+
+    const updateCostField = (id, key, value) => {
+        setCostRows((prev) => prev.map((row) => (row.id === id ? { ...row, [key]: value } : row)));
+    };
+
+    const saveCostRow = async (row) => {
+        try {
+            await api.put(`/costs/${row.id}`, {
+                city: row.city,
+                country: row.country,
+                currency: String(row.currency || '').trim().toUpperCase(),
+                lifestyle: row.lifestyle,
+                rent: Number(row.rent),
+                food: Number(row.food),
+                transport: Number(row.transport)
             });
-            loadCosts();
-            setIsModalOpen(false);
+            await loadCosts();
+            showSaveToast(`Saved ${row.city} (${String(row.lifestyle || '').toLowerCase()}).`);
         } catch (err) {
-            console.error('Failed to add city:', err.message);
-            alert('Failed to add city: ' + err.message);
+            alert(`Failed to save living cost row: ${err.message}`);
         }
     };
 
-    const handleSaveCity = async (city, rent, food, transport) => {
+    const handleDeleteCost = async (id) => {
         try {
-            await api.put(`/costs/${city.id}`, {
-                city: city.city, country: city.country, currency: city.currency,
-                rent: Number(rent), food: Number(food), transport: Number(transport)
-            });
-            loadCosts();
+            await api.delete(`/costs/${id}`);
+            await loadCosts();
+            showSaveToast('Living cost removed.');
         } catch (err) {
-            console.error('Failed to save city:', err.message);
-            alert('Failed to save: ' + err.message);
+            alert(`Failed to delete living cost: ${err.message}`);
+            throw err;
+        }
+    };
+
+    const addLivingCost = async (e) => {
+        e?.preventDefault();
+        setCostErrorMsg('');
+        const city = String(newLivingCost.city || '').trim();
+        const cur = String(newLivingCost.currency || '').trim().toUpperCase();
+        const rent = Number(newLivingCost.rent);
+        const food = Number(newLivingCost.food);
+        const transport = Number(newLivingCost.transport);
+        const life = String(newLivingCost.lifestyle || 'medium').toLowerCase();
+
+        if (!city || !citiesWithUniversities.includes(city)) {
+            setCostErrorMsg('Select a city from the list.');
+            return;
+        }
+        if (!cur || !currencies.includes(cur)) {
+            setCostErrorMsg('Select a currency from the list.');
+            return;
+        }
+        if (![rent, food, transport].every((n) => Number.isFinite(n) && n >= 0)) {
+            setCostErrorMsg('Rent, food, and transport must be non-negative numbers.');
+            return;
+        }
+
+        setIsSaving(true);
+        try {
+            const selectedCity = universities.find((u) => u.city === city);
+            const country = selectedCity?.country || '';
+
+            await api.post('/costs', {
+                city,
+                country,
+                currency: cur,
+                lifestyle: life,
+                rent,
+                food,
+                transport
+            });
+            await loadCosts();
+            closeAddModal();
+            showSaveToast(`Added ${city} (${life}).`);
+        } catch (err) {
+            setCostErrorMsg(err.message || 'Failed to add living cost');
+            setIsSaving(false);
         }
     };
 
@@ -64,144 +189,298 @@ const ManageCosts = () => {
         <div className="space-y-8 animate-in fade-in duration-500 max-w-7xl mx-auto">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
-                    <h1 className="text-3xl font-black text-white tracking-tight">Cost Configuration</h1>
-                    <p className="text-zinc-400 font-medium">Update base estimates for the Cost Estimator tool.</p>
+                    <h1 className="text-3xl font-black text-white tracking-tight">Costs</h1>
+                    <p className="text-zinc-400 font-medium">Living costs by city and lifestyle.</p>
                 </div>
-                <div className="flex gap-3">
+                <div className="flex items-center gap-2 shrink-0">
+                    <div className="relative">
+                        <button
+                            type="button"
+                            onClick={() => setShowFilterDropdown((open) => !open)}
+                            className="px-4 py-3 bg-zinc-900 border border-zinc-700 rounded-xl text-zinc-300 font-bold hover:bg-zinc-800 flex items-center gap-2"
+                            aria-expanded={showFilterDropdown}
+                            aria-haspopup="true"
+                        >
+                            <Filter size={18} />
+                        </button>
+                        {showFilterDropdown && (
+                            <div className="absolute right-0 top-14 w-64 bg-[#18181b] border border-zinc-800 rounded-xl shadow-2xl z-50 p-3 space-y-3">
+                                <div>
+                                    <label className="block text-[10px] font-bold text-zinc-500 uppercase mb-1">Lifestyle</label>
+                                    <select
+                                        value={selectedLifestyle}
+                                        onChange={(e) => setSelectedLifestyle(e.target.value)}
+                                        className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-zinc-200 text-sm"
+                                    >
+                                        {LIFESTYLE_OPTIONS.map((life) => (
+                                            <option key={life} value={life}>
+                                                {life}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-bold text-zinc-500 uppercase mb-1">Country</label>
+                                    <select
+                                        value={selectedCountry}
+                                        onChange={(e) => setSelectedCountry(e.target.value)}
+                                        className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-zinc-200 text-sm"
+                                    >
+                                        {availableCountries.map((country) => (
+                                            <option key={country} value={country}>
+                                                {country === 'All' ? 'All countries' : country}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setSelectedLifestyle('medium');
+                                        setSelectedCountry('All');
+                                        setShowFilterDropdown(false);
+                                    }}
+                                    className="w-full px-3 py-2 text-xs font-bold text-red-400 hover:bg-red-500/10 rounded-lg"
+                                >
+                                    Reset filters
+                                </button>
+                            </div>
+                        )}
+                    </div>
                     <button
-                        onClick={() => setIsModalOpen(true)}
-                        className="flex items-center gap-2 px-5 py-3 bg-amber-500 hover:bg-amber-400 text-black font-bold rounded-xl shadow-lg shadow-amber-900/20 transition-all active:scale-95"
+                        type="button"
+                        onClick={openAddModal}
+                        className="inline-flex items-center justify-center gap-2 px-5 py-3 bg-amber-500 hover:bg-amber-400 text-black font-bold rounded-xl shadow-lg shadow-amber-900/20 transition-all"
                     >
                         <Plus size={18} />
-                        <span>Add Exchange Rate</span>
-                    </button>
-                    <button
-                        onClick={loadCosts}
-                        className="flex items-center gap-2 px-5 py-3 bg-zinc-800 hover:bg-zinc-700 text-white font-bold rounded-xl border border-zinc-700 shadow-sm transition-all active:scale-95"
-                    >
-                        <RefreshCw size={18} />
-                        <span>Sync Rates</span>
+                        Add new
                     </button>
                 </div>
             </div>
 
-            <div className="bg-[#18181b] rounded-[2rem] border border-zinc-800 overflow-hidden shadow-sm">
+            <section className="relative bg-[#18181b] rounded-2xl border border-zinc-800 overflow-hidden flex flex-col min-h-0">
                 <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse">
+                    <table className="w-full text-left border-collapse text-sm">
                         <thead>
-                            <tr className="bg-zinc-900/50 border-b border-zinc-800">
-                                <th className="p-6 text-sm font-bold text-zinc-500 uppercase tracking-wider">City</th>
-                                <th className="p-6 text-sm font-bold text-zinc-500 uppercase tracking-wider">Base Rent</th>
-                                <th className="p-6 text-sm font-bold text-zinc-500 uppercase tracking-wider">Food Est.</th>
-                                <th className="p-6 text-sm font-bold text-zinc-500 uppercase tracking-wider">Transport</th>
-                                <th className="p-6 text-sm font-bold text-zinc-500 uppercase tracking-wider text-right">Actions</th>
+                            <tr className="bg-zinc-900/60 border-b border-zinc-800">
+                                <th className="px-4 py-2.5 text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Location</th>
+                                <th className="px-3 py-2.5 text-[10px] font-bold text-zinc-500 uppercase">Rent</th>
+                                <th className="px-3 py-2.5 text-[10px] font-bold text-zinc-500 uppercase">Food</th>
+                                <th className="px-3 py-2.5 text-[10px] font-bold text-zinc-500 uppercase">Trans.</th>
+                                <th className="px-3 py-2.5 text-[10px] font-bold text-zinc-500 uppercase">CCY</th>
+                                <th className="px-4 py-2.5 text-[10px] font-bold text-zinc-500 uppercase text-right min-w-[5.5rem]">Actions</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-zinc-800">
-                            {cities.map((city, idx) => {
-                                // Use local DOM refs via data attributes for simplicity
-                                const rowId = city.id || idx;
-                                return (
-                                <tr key={rowId} id={`row-${rowId}`} className="group hover:bg-zinc-800/50 transition-colors">
-                                    <td className="p-6">
-                                        <div className="flex items-center gap-3">
-                                            <div className="p-2 bg-zinc-800 rounded-lg text-amber-500 group-hover:text-amber-400">
-                                                <MapPin size={18} />
-                                            </div>
-                                            <div>
-                                                <span className="block font-bold text-white text-lg">{city.city}</span>
-                                                <span className="text-xs font-bold text-zinc-500 uppercase">{city.country}</span>
+                        <tbody className="divide-y divide-zinc-800/80">
+                            {filteredCosts.map((row) => (
+                                <tr key={row.id} className="hover:bg-zinc-800/30">
+                                    <td className="px-4 py-2 align-middle">
+                                        <div className="flex items-center gap-2 min-w-0">
+                                            <MapPin size={14} className="text-amber-500 shrink-0" />
+                                            <div className="min-w-0">
+                                                <div className="text-white font-semibold truncate">{row.city}</div>
+                                                <div className="text-zinc-500 text-[11px] uppercase truncate">{row.country}</div>
                                             </div>
                                         </div>
                                     </td>
-                                    <td className="p-6">
-                                        <div className="flex items-center gap-2 bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 w-32 focus-within:border-amber-500 transition-colors">
-                                            <span className="text-zinc-500 text-xs font-bold">{city.currency}</span>
-                                            <input id={`rent-${rowId}`} type="number" defaultValue={city.rent} className="bg-transparent text-white font-mono w-full outline-none" />
-                                        </div>
+                                    <td className="px-3 py-2 align-middle">
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            value={row.rent}
+                                            onChange={(e) => updateCostField(row.id, 'rent', e.target.value)}
+                                            className="w-20 px-2 py-1 rounded-md bg-zinc-900 border border-zinc-700 text-white text-sm tabular-nums"
+                                        />
                                     </td>
-                                    <td className="p-6">
-                                        <div className="flex items-center gap-2 bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 w-32 focus-within:border-amber-500 transition-colors">
-                                            <span className="text-zinc-500 text-xs font-bold">{city.currency}</span>
-                                            <input id={`food-${rowId}`} type="number" defaultValue={city.food} className="bg-transparent text-white font-mono w-full outline-none" />
-                                        </div>
+                                    <td className="px-3 py-2 align-middle">
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            value={row.food}
+                                            onChange={(e) => updateCostField(row.id, 'food', e.target.value)}
+                                            className="w-20 px-2 py-1 rounded-md bg-zinc-900 border border-zinc-700 text-white text-sm tabular-nums"
+                                        />
                                     </td>
-                                    <td className="p-6">
-                                        <div className="flex items-center gap-2 bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 w-32 focus-within:border-amber-500 transition-colors">
-                                            <span className="text-zinc-500 text-xs font-bold">{city.currency}</span>
-                                            <input id={`transport-${rowId}`} type="number" defaultValue={city.transport} className="bg-transparent text-white font-mono w-full outline-none" />
-                                        </div>
+                                    <td className="px-3 py-2 align-middle">
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            value={row.transport}
+                                            onChange={(e) => updateCostField(row.id, 'transport', e.target.value)}
+                                            className="w-20 px-2 py-1 rounded-md bg-zinc-900 border border-zinc-700 text-white text-sm tabular-nums"
+                                        />
                                     </td>
-                                    <td className="p-6 text-right">
-                                        <button
-                                            onClick={() => {
-                                                const rent = document.getElementById(`rent-${rowId}`)?.value;
-                                                const food = document.getElementById(`food-${rowId}`)?.value;
-                                                const transport = document.getElementById(`transport-${rowId}`)?.value;
-                                                handleSaveCity(city, rent, food, transport);
-                                            }}
-                                            className="p-2.5 bg-amber-500 hover:bg-amber-400 text-black rounded-lg transition-colors shadow-lg shadow-amber-900/20 active:scale-95"
-                                        >
-                                            <Save size={18} />
-                                        </button>
+                                    <td className="px-3 py-2 align-middle">
+                                        <input
+                                            type="text"
+                                            maxLength={3}
+                                            value={String(row.currency || '').toUpperCase()}
+                                            onChange={(e) => updateCostField(row.id, 'currency', e.target.value.toUpperCase())}
+                                            className="w-14 px-1.5 py-1 rounded-md bg-zinc-900 border border-zinc-700 text-white uppercase text-sm text-center"
+                                        />
+                                    </td>
+                                    <td className="px-4 py-2 align-middle text-right">
+                                        <div className="inline-flex items-center gap-1 justify-end">
+                                            <button
+                                                type="button"
+                                                onClick={() => saveCostRow(row)}
+                                                className="inline-flex items-center justify-center p-1.5 bg-amber-500 hover:bg-amber-400 text-black rounded-lg"
+                                                title="Save"
+                                            >
+                                                <Save size={14} />
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setDeleteConfirmId(row.id)}
+                                                className="inline-flex items-center justify-center p-1.5 rounded-lg bg-zinc-800 hover:bg-red-950/80 border border-zinc-600 hover:border-red-800 text-zinc-300 hover:text-red-300"
+                                                title="Delete"
+                                            >
+                                                <Trash2 size={14} />
+                                            </button>
+                                        </div>
                                     </td>
                                 </tr>
-                                );
-                            })}
+                            ))}
+                            {filteredCosts.length === 0 && (
+                                <tr>
+                                    <td colSpan={6} className="px-4 py-10 text-center text-zinc-500 text-sm">
+                                        No rows match your filters.
+                                    </td>
+                                </tr>
+                            )}
                         </tbody>
                     </table>
                 </div>
-            </div>
+                {saveToast && (
+                    <div
+                        role="status"
+                        className="absolute bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 rounded-xl bg-emerald-950/95 border border-emerald-700/80 text-emerald-200 text-sm font-semibold shadow-lg z-20 pointer-events-none animate-in fade-in zoom-in-95 duration-200 max-w-[90%] text-center"
+                    >
+                        {saveToast}
+                    </div>
+                )}
+            </section>
 
-            {/* Add Exchange Rate Modal */}
-            {isModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-                    <div className="bg-[#18181b] w-full max-w-lg rounded-2xl border border-zinc-800 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
-                        <div className="p-6 border-b border-zinc-800 flex justify-between items-center bg-zinc-900/50">
-                            <h2 className="text-xl font-black text-white">Add New Exchange Rate</h2>
-                            <button onClick={() => setIsModalOpen(false)} className="text-zinc-500 hover:text-white transition-colors">
-                                <X size={24} />
+            <ConfirmDialog
+                isOpen={deleteConfirmId != null}
+                onClose={() => setDeleteConfirmId(null)}
+                onConfirm={() => handleDeleteCost(deleteConfirmId)}
+                title="Delete living cost?"
+                confirmText="Delete"
+                cancelText="Cancel"
+                message="This action cannot be undone. Are you sure you want to delete this living cost?"
+            />
+
+            {isAddModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+                    <div className="bg-[#18181b] w-full max-w-lg rounded-2xl border border-zinc-800 shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+                        <div className="p-5 border-b border-zinc-800 flex justify-between items-center bg-zinc-900/50">
+                            <h2 className="text-lg font-black text-white">Add living cost</h2>
+                            <button type="button" onClick={closeAddModal} className="text-zinc-500 hover:text-white p-1">
+                                <X size={22} />
                             </button>
                         </div>
-                        <form onSubmit={handleAddExchangeRate} className="p-6 space-y-4">
-                            <div className="grid grid-cols-2 gap-4">
+                        <form onSubmit={addLivingCost} className="p-5 space-y-4 overflow-y-auto">
+                            {costErrorMsg && (
+                                <p className="text-sm text-red-400 font-medium">{costErrorMsg}</p>
+                            )}
+                            <div>
+                                <label className="block text-xs font-bold text-zinc-500 mb-1.5">City</label>
+                                <select
+                                    required
+                                    value={newLivingCost.city}
+                                    onChange={(e) => setNewLivingCost((p) => ({ ...p, city: e.target.value }))}
+                                    className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-zinc-200"
+                                >
+                                    <option value="">Select city</option>
+                                    {citiesWithUniversities.map((name) => (
+                                        <option key={name} value={name}>
+                                            {name}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-zinc-500 mb-1.5">Lifestyle</label>
+                                <select
+                                    value={newLivingCost.lifestyle}
+                                    onChange={(e) => setNewLivingCost((p) => ({ ...p, lifestyle: e.target.value }))}
+                                    className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-zinc-200"
+                                >
+                                    {LIFESTYLE_OPTIONS.map((life) => (
+                                        <option key={life} value={life}>
+                                            {life}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div className="grid grid-cols-3 gap-3">
                                 <div>
-                                    <label className="block text-sm font-bold text-zinc-400 mb-1.5">City</label>
-                                    <input name="city" required type="text" className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white focus:outline-none focus:border-amber-500 transition-colors" placeholder="e.g. London" />
+                                    <label className="block text-xs font-bold text-zinc-500 mb-1.5">Rent / mo</label>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        required
+                                        value={newLivingCost.rent}
+                                        onChange={(e) => setNewLivingCost((p) => ({ ...p, rent: e.target.value }))}
+                                        className="w-full px-3 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white"
+                                    />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-bold text-zinc-400 mb-1.5">Country</label>
-                                    <input name="country" required type="text" className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white focus:outline-none focus:border-amber-500 transition-colors" placeholder="e.g. UK" />
+                                    <label className="block text-xs font-bold text-zinc-500 mb-1.5">Food / mo</label>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        required
+                                        value={newLivingCost.food}
+                                        onChange={(e) => setNewLivingCost((p) => ({ ...p, food: e.target.value }))}
+                                        className="w-full px-3 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-zinc-500 mb-1.5">Transport / mo</label>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        required
+                                        value={newLivingCost.transport}
+                                        onChange={(e) => setNewLivingCost((p) => ({ ...p, transport: e.target.value }))}
+                                        className="w-full px-3 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white"
+                                    />
                                 </div>
                             </div>
                             <div>
-                                <label className="block text-sm font-bold text-zinc-400 mb-1.5">Currency</label>
-                                <select name="currency" className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white focus:outline-none focus:border-amber-500 transition-colors">
-                                    <option value="$">$ USD</option>
-                                    <option value="£">£ GBP</option>
-                                    <option value="€">€ EUR</option>
-                                    <option value="¥">¥ JPY</option>
-                                    <option value="A$">A$ AUD</option>
-                                    <option value="C$">C$ CAD</option>
+                                <label className="block text-xs font-bold text-zinc-500 mb-1.5">Currency</label>
+                                <select
+                                    required
+                                    value={newLivingCost.currency}
+                                    onChange={(e) => setNewLivingCost((p) => ({ ...p, currency: e.target.value }))}
+                                    className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-zinc-200"
+                                >
+                                    <option value="">{currencies.length ? 'Select currency' : 'No currencies in currency_rates'}</option>
+                                    {currencies.map((code) => (
+                                        <option key={code} value={code}>
+                                            {code}
+                                        </option>
+                                    ))}
                                 </select>
                             </div>
-                            <div className="grid grid-cols-3 gap-4">
-                                <div>
-                                    <label className="block text-sm font-bold text-zinc-400 mb-1.5">Rent/Month</label>
-                                    <input name="rent" required type="number" className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white focus:outline-none focus:border-amber-500 transition-colors" placeholder="800" />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-bold text-zinc-400 mb-1.5">Food/Month</label>
-                                    <input name="food" required type="number" className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white focus:outline-none focus:border-amber-500 transition-colors" placeholder="300" />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-bold text-zinc-400 mb-1.5">Transport/Month</label>
-                                    <input name="transport" required type="number" className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white focus:outline-none focus:border-amber-500 transition-colors" placeholder="100" />
-                                </div>
-                            </div>
-                            <div className="pt-4 flex gap-3">
-                                <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 py-3 rounded-xl bg-zinc-800 text-zinc-300 font-bold hover:bg-zinc-700 transition-colors">Cancel</button>
-                                <button type="submit" className="flex-1 py-3 rounded-xl bg-amber-500 text-black font-bold hover:bg-amber-400 transition-colors">Add Rate</button>
+                            <div className="flex gap-3 pt-2">
+                                <button
+                                    type="button"
+                                    onClick={closeAddModal}
+                                    className="flex-1 py-3 rounded-xl bg-zinc-800 text-zinc-300 font-bold hover:bg-zinc-700"
+                                    disabled={isSaving}
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    className="flex-1 py-3 rounded-xl bg-amber-500 text-black font-bold hover:bg-amber-400 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    disabled={isSaving}
+                                >
+                                    {isSaving ? 'Creating...' : 'Create'}
+                                </button>
                             </div>
                         </form>
                     </div>

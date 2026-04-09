@@ -56,6 +56,7 @@ const Tracker = () => {
             setApplications(updated);
         } catch (err) {
             console.error('Failed to update status:', err.message);
+            throw err;
         }
     };
 
@@ -65,6 +66,7 @@ const Tracker = () => {
             setApplications(apps => apps.filter(a => a.id !== id));
         } catch (err) {
             console.error('Delete failed:', err.message);
+            throw err;
         }
     };
 

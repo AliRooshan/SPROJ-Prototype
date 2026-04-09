@@ -1,256 +1,433 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Plus, Award, Calendar, Globe, X, Edit2 } from 'lucide-react';
+import { Search, Plus, Filter, MoreHorizontal, X, Edit2, Trash2, Eye, Clock, Globe } from 'lucide-react';
 import api from '../../services/api';
+import ConfirmDialog from '../../components/ConfirmDialog';
+
+const toRequirementsText = (requirements) =>
+    (Array.isArray(requirements) ? requirements : [])
+        .map((item) => {
+            const trimmed = String(item || '').trim();
+            if (!trimmed) return '';
+            return trimmed.startsWith('- ') ? trimmed : `- ${trimmed}`;
+        })
+        .filter(Boolean)
+        .join('\n');
+
+const fromRequirementsText = (text) =>
+    String(text || '')
+        .split('\n')
+        .map((v) => v.trim().replace(/^-+\s*/, ''))
+        .filter(Boolean);
+
+const normalizeRequirementsInput = (raw) => {
+    const lines = String(raw || '').split('\n');
+    return lines
+        .map((line) => {
+            const trimmed = line.trim();
+            if (!trimmed) return '- ';
+            if (trimmed.startsWith('- ')) return trimmed;
+            return `- ${trimmed.replace(/^-+\s*/, '')}`;
+        })
+        .join('\n');
+};
+
+const formatDate = (value) => {
+    if (!value) return '—';
+    return new Date(value).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+};
 
 const ManageScholarships = () => {
     const [searchParams, setSearchParams] = useSearchParams();
+    const [scholarships, setScholarships] = useState([]);
+    const [filters, setFilters] = useState({ countries: [], types: [] });
+    const [countries, setCountries] = useState([]);
+    const [currencies, setCurrencies] = useState([]);
+    const [loading, setLoading] = useState(true);
+
+    const [searchTerm, setSearchTerm] = useState('');
+    const [filterCountry, setFilterCountry] = useState('All');
+    const [filterType, setFilterType] = useState('All');
+    const [amountMax, setAmountMax] = useState(null);
+    const [showFilterDropdown, setShowFilterDropdown] = useState(false);
+    const [sortBy, setSortBy] = useState('id');
+
+    const [openMenuId, setOpenMenuId] = useState(null);
+    const [deleteConfirmId, setDeleteConfirmId] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-    const [editingScholarship, setEditingScholarship] = useState(null);
-    const [localScholarships, setLocalScholarships] = useState([]);
+    const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
+    const [activeScholarship, setActiveScholarship] = useState(null);
+    const [errorMsg, setErrorMsg] = useState('');
+
+    const loadData = async () => {
+        setLoading(true);
+        try {
+            const [schData, filtersData, countriesData, currenciesData] = await Promise.all([
+                api.get('/scholarships'),
+                api.get('/scholarships/filters'),
+                api.get('/scholarships/countries'),
+                api.get('/scholarships/currencies')
+            ]);
+            setScholarships(schData);
+            setFilters({
+                countries: filtersData.countries || [],
+                types: filtersData.types || []
+            });
+            setCountries(countriesData || []);
+            setCurrencies(Array.isArray(currenciesData) && currenciesData.length ? currenciesData : ['USD']);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     useEffect(() => {
-        api.get('/scholarships')
-            .then(data => setLocalScholarships(data))
-            .catch(console.error);
+        loadData().catch(console.error);
     }, []);
 
-    // Check for URL action
     useEffect(() => {
-        if (searchParams.get('action') === 'add') {
-            setIsModalOpen(true);
-        }
-    }, [searchParams]);
+        if (searchParams.get('action') === 'add') openAddModal();
+    }, [searchParams, countries, currencies]);
 
-    const handleCloseModal = () => {
-        setIsModalOpen(false);
-        setSearchParams({});
-    };
+    const maxAmount = useMemo(
+        () => Math.max(0, ...scholarships.map(s => Number(s.standard_amount ?? s.amount ?? 0))),
+        [scholarships]
+    );
 
-    const handleAddScholarship = async (e) => {
-        e.preventDefault();
-        const formData = new FormData(e.target);
-        try {
-            await api.post('/scholarships', {
-                name: formData.get('title'),
-                amount: Number(formData.get('amount')),
-                currency: formData.get('currency'),
-                country: formData.get('country') || 'Global',
-                deadline: formData.get('deadline'),
-                provider: formData.get('provider') || '',
-                type: 'Merit-based',
-                requirements: []
+    const filteredScholarships = useMemo(() => {
+        return scholarships
+            .filter((s) => {
+                const amount = Number(s.standard_amount ?? s.amount ?? 0);
+                const matchesSearch =
+                    (s.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    (s.provider || '').toLowerCase().includes(searchTerm.toLowerCase());
+                const matchesCountry = filterCountry === 'All' || s.country === filterCountry;
+                const matchesType = filterType === 'All' || s.type === filterType;
+                const matchesAmount = amountMax == null || amount <= amountMax;
+                return matchesSearch && matchesCountry && matchesType && matchesAmount;
+            })
+            .sort((a, b) => {
+                if (sortBy === 'amount_low') return Number(a.standard_amount ?? a.amount) - Number(b.standard_amount ?? b.amount);
+                if (sortBy === 'amount_high') return Number(b.standard_amount ?? b.amount) - Number(a.standard_amount ?? a.amount);
+                return a.id - b.id;
             });
-            const fresh = await api.get('/scholarships');
-            setLocalScholarships(fresh);
-            handleCloseModal();
-        } catch (err) {
-            console.error('Failed to add scholarship:', err.message);
-            alert('Failed to add scholarship: ' + err.message);
-        }
+    }, [scholarships, searchTerm, filterCountry, filterType, amountMax, sortBy]);
+
+    const openAddModal = () => {
+        setErrorMsg('');
+        setActiveScholarship({
+            name: '',
+            provider: '',
+            amount: '',
+            deadline: '',
+            country_id: countries[0]?.id || '',
+            type: '',
+            description: '',
+            requirements: '- ',
+            website: '',
+            currency: currencies[0] || 'USD'
+        });
+        setIsModalOpen(true);
     };
 
-    const handleEditScholarship = (scholarship) => {
-        setEditingScholarship(scholarship);
+    const openEditModal = (item) => {
+        setOpenMenuId(null);
+        setErrorMsg('');
+        const countryId = countries.find(c => c.name === item.country)?.id || '';
+        setActiveScholarship({
+            ...item,
+            country_id: countryId,
+            requirements: toRequirementsText(item.requirements)
+        });
         setIsEditModalOpen(true);
     };
 
-    const handleUpdateScholarship = async (e) => {
-        e.preventDefault();
-        const formData = new FormData(e.target);
+    const openDetailsModal = (item) => {
+        setOpenMenuId(null);
+        setActiveScholarship(item);
+        setIsDetailsModalOpen(true);
+    };
+
+    const upsertScholarship = async (mode) => {
         try {
-            await api.put(`/scholarships/${editingScholarship.id}`, {
-                name: formData.get('title'),
-                amount: Number(formData.get('amount')),
-                currency: formData.get('currency'),
-                country: formData.get('country') || editingScholarship.country,
-                deadline: formData.get('deadline'),
-                provider: editingScholarship.provider || '',
-                type: editingScholarship.type || 'Merit-based',
-                requirements: Array.isArray(editingScholarship.requirements) ? editingScholarship.requirements : []
-            });
-            const fresh = await api.get('/scholarships');
-            setLocalScholarships(fresh);
-            setIsEditModalOpen(false); setEditingScholarship(null);
+            const requiredFields = [
+                activeScholarship.name, activeScholarship.provider, activeScholarship.amount, activeScholarship.deadline,
+                activeScholarship.country_id, activeScholarship.type, activeScholarship.description,
+                activeScholarship.requirements, activeScholarship.website, activeScholarship.currency
+            ];
+            if (requiredFields.some(v => String(v ?? '').trim() === '')) {
+                setErrorMsg('All fields are mandatory.');
+                return;
+            }
+            const amount = Number(activeScholarship.amount);
+            if (!Number.isFinite(amount) || amount <= 0) {
+                setErrorMsg('Amount must be a positive number.');
+                return;
+            }
+
+            const payload = {
+                name: activeScholarship.name,
+                provider: activeScholarship.provider,
+                amount,
+                deadline: activeScholarship.deadline,
+                country_id: Number(activeScholarship.country_id),
+                type: activeScholarship.type,
+                description: activeScholarship.description,
+                requirements: fromRequirementsText(activeScholarship.requirements),
+                website: activeScholarship.website,
+                currency: activeScholarship.currency
+            };
+            if (mode === 'create') await api.post('/scholarships', payload);
+            else await api.put(`/scholarships/${activeScholarship.id}`, payload);
+            await loadData();
+            setIsModalOpen(false);
+            setIsEditModalOpen(false);
+            setActiveScholarship(null);
+            setSearchParams({});
         } catch (err) {
-            console.error('Failed to update scholarship:', err.message);
-            alert('Failed to update scholarship: ' + err.message);
+            setErrorMsg(err.message || 'Failed to save scholarship');
         }
     };
+
+    const handleDeleteScholarship = async (id) => {
+        try {
+            await api.delete(`/scholarships/${id}`);
+            await loadData();
+            setDeleteConfirmId(null);
+            setOpenMenuId(null);
+        } catch (err) {
+            alert(`Failed to delete scholarship: ${err.message}`);
+        }
+    };
+
+    const updateField = (key, value) => setActiveScholarship(prev => ({ ...prev, [key]: value }));
 
     return (
         <div className="space-y-8 animate-in fade-in duration-500 max-w-7xl mx-auto">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
                     <h1 className="text-3xl font-black text-white tracking-tight">Scholarships</h1>
-                    <p className="text-zinc-400 font-medium">Manage and post new scholarship opportunities.</p>
+                    <p className="text-zinc-400 font-medium">Manage normalized scholarship records from database.</p>
                 </div>
-                <button
-                    onClick={() => setIsModalOpen(true)}
-                    className="flex items-center gap-2 px-5 py-3 bg-amber-500 hover:bg-amber-400 text-black font-bold rounded-xl shadow-lg shadow-amber-900/20 transition-all hover:-translate-y-0.5 active:translate-y-0"
-                >
+                <button onClick={openAddModal} className="flex items-center gap-2 px-5 py-3 bg-amber-500 hover:bg-amber-400 text-black font-bold rounded-xl shadow-lg shadow-amber-900/20 transition-all hover:-translate-y-0.5">
                     <Plus size={18} />
-                    <span>Post Scholarship</span>
+                    <span>Add Scholarship</span>
                 </button>
             </div>
 
-            {/* Grid Layout for Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {localScholarships.map((sch, index) => (
-                    <div key={sch.id || index} className="bg-[#18181b] p-6 rounded-[2rem] border border-zinc-800 hover:border-amber-500/30 hover:-translate-y-1 transition-all shadow-sm group relative overflow-hidden flex flex-col h-full">
-                        {/* Decorative Top Gradient */}
-                        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-amber-500 to-orange-600"></div>
-
-                        <div className="flex justify-between items-start mb-6">
-                            <div className="p-3 bg-zinc-800 rounded-2xl text-amber-500 group-hover:scale-110 transition-transform">
-                                <Award size={24} />
+            <div className="bg-[#18181b] p-4 rounded-2xl border border-zinc-800 flex flex-col lg:flex-row gap-4">
+                <div className="flex-1 relative">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" size={20} />
+                    <input type="text" placeholder="Search by name, provider..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-12 pr-4 py-3 bg-zinc-900/50 border border-zinc-700 rounded-xl text-white placeholder-zinc-500 focus:outline-none focus:border-amber-500/50" />
+                </div>
+                <div className="flex gap-2 relative">
+                    <button onClick={() => setShowFilterDropdown(!showFilterDropdown)} className="px-4 py-3 bg-zinc-900 border border-zinc-700 rounded-xl text-zinc-300 font-bold hover:bg-zinc-800 flex items-center gap-2">
+                        <Filter size={18} />
+                    </button>
+                    {showFilterDropdown && (
+                        <div className="absolute right-0 top-14 w-72 bg-[#18181b] border border-zinc-800 rounded-xl shadow-2xl z-50 p-3 space-y-3">
+                            <select value={filterCountry} onChange={(e) => setFilterCountry(e.target.value)} className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-zinc-200">
+                                <option value="All">All Countries</option>
+                                {filters.countries.map(c => <option key={c} value={c}>{c}</option>)}
+                            </select>
+                            <select value={filterType} onChange={(e) => setFilterType(e.target.value)} className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-zinc-200">
+                                <option value="All">All Types</option>
+                                {filters.types.map(t => <option key={t} value={t}>{t}</option>)}
+                            </select>
+                            <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-zinc-200">
+                                <option value="id">Default Sort</option>
+                                <option value="amount_high">Amount: High to Low</option>
+                                <option value="amount_low">Amount: Low to High</option>
+                            </select>
+                            <div>
+                                <label className="text-xs text-zinc-400 font-bold">
+                                    Max Standard Amount: {(amountMax == null ? maxAmount : amountMax).toLocaleString()}
+                                </label>
+                                <input type="range" min="0" max={maxAmount || 1000} step="1000" value={amountMax ?? maxAmount} onChange={(e) => setAmountMax(Number(e.target.value))} className="w-full" />
                             </div>
-                            <span className="px-3 py-1 bg-zinc-800 rounded-full text-xs font-bold text-zinc-400 flex items-center gap-1 line-clamp-1 max-w-[50%]">
-                                <Globe size={12} className="shrink-0" /> {sch.country || 'Global'}
-                            </span>
-                        </div>
-
-                        <h3 className="text-xl font-bold text-white mb-2 leading-tight group-hover:text-amber-400 transition-colors line-clamp-2">{sch.name}</h3>
-
-                        <div className="space-y-4 mt-auto pt-6">
-                            <div className="flex justify-between items-center text-sm border-b border-zinc-800 pb-3">
-                                <span className="text-zinc-500 font-bold shrink-0">Value</span>
-                                <span className="text-white font-mono font-bold text-right truncate ml-2">{sch.currency || ''} {Number(sch.amount ?? 0).toLocaleString()}</span>
-                            </div>
-                            <div className="flex justify-between items-center text-sm">
-                                <span className="text-zinc-500 font-bold">Deadline</span>
-                                <span className="text-zinc-300 font-bold flex items-center gap-1">
-                                    <Calendar size={14} className="text-amber-500" /> {sch.deadline}
-                                </span>
-                            </div>
-                        </div>
-
-                        <div className="mt-6">
-                            <button
-                                onClick={() => handleEditScholarship(sch)}
-                                className="w-full py-3 rounded-xl bg-zinc-800 text-zinc-300 font-bold hover:bg-zinc-700 hover:text-white transition-all flex items-center justify-center gap-2 group-hover/btn"
-                            >
-                                Edit Details
-                                <Edit2 size={16} className="text-amber-500" />
+                            <button onClick={() => { setFilterCountry('All'); setFilterType('All'); setSortBy('id'); setAmountMax(null); setShowFilterDropdown(false); }} className="w-full px-3 py-2 text-xs font-bold text-red-400 hover:bg-red-500/10 rounded-lg">
+                                Reset Filters
                             </button>
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4">
+                {!loading && filteredScholarships.map((s) => (
+                    <div key={s.id} className="group bg-[#18181b] p-5 rounded-2xl border border-zinc-800 hover:border-amber-500/30 transition-all flex items-center justify-between gap-4">
+                        <div className="min-w-0">
+                            <h3 className="text-lg font-bold text-white group-hover:text-amber-400 transition-colors line-clamp-1">{s.name}</h3>
+                            <div className="text-sm text-zinc-400 flex flex-wrap items-center gap-3 mt-1">
+                                <span>{s.provider}</span>
+                                <span className="flex items-center gap-1"><Globe size={14} />{s.country}</span>
+                                <span className="flex items-center gap-1"><Clock size={14} />{formatDate(s.deadline)}</span>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-4">
+                            <div className="text-right">
+                                <div className="text-white font-bold">{s.currency} {Number(s.amount ?? 0).toLocaleString()}</div>
+                                <div className="text-[11px] text-zinc-500">USD: {Number(s.standard_amount ?? 0).toLocaleString()}</div>
+                            </div>
+                            <div className="relative">
+                                <button onClick={() => setOpenMenuId(openMenuId === s.id ? null : s.id)} className="p-2 hover:bg-zinc-700 rounded-lg text-zinc-400">
+                                    <MoreHorizontal size={20} />
+                                </button>
+                                {openMenuId === s.id && (
+                                    <div className="absolute right-0 top-10 w-48 bg-[#18181b] border border-zinc-800 rounded-xl shadow-2xl z-50 p-2">
+                                        <button onClick={() => openDetailsModal(s)} className="w-full flex items-center gap-3 px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-800 rounded-lg">
+                                            <Eye size={16} /> See Details
+                                        </button>
+                                        <button onClick={() => openEditModal(s)} className="w-full flex items-center gap-3 px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-800 rounded-lg">
+                                            <Edit2 size={16} /> Edit
+                                        </button>
+                                        <button onClick={() => { setDeleteConfirmId(s.id); setOpenMenuId(null); }} className="w-full flex items-center gap-3 px-3 py-2 text-sm text-red-400 hover:bg-red-500/10 rounded-lg">
+                                            <Trash2 size={16} /> Delete
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     </div>
                 ))}
-
-                {/* Add New Placeholder Card */}
-                <button
-                    onClick={() => setIsModalOpen(true)}
-                    className="border-2 border-dashed border-zinc-800 rounded-[2rem] p-6 flex flex-col items-center justify-center text-center gap-3 hover:border-amber-500/30 hover:bg-zinc-900/30 transition-all cursor-pointer group min-h-[350px] w-full"
-                >
-                    <div className="w-14 h-14 rounded-full bg-zinc-800 flex items-center justify-center text-zinc-500 group-hover:text-amber-500 transition-colors">
-                        <Plus size={24} />
-                    </div>
-                    <h3 className="text-lg font-bold text-zinc-400 group-hover:text-zinc-200">Create New</h3>
-                </button>
+                {!loading && filteredScholarships.length === 0 && (
+                    <div className="p-12 text-center text-zinc-500">No scholarships found.</div>
+                )}
             </div>
 
-            {/* Add Scholarship Modal */}
-            {isModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-                    <div className="bg-[#18181b] w-full max-w-lg rounded-2xl border border-zinc-800 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+            {(isModalOpen || isEditModalOpen) && activeScholarship && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+                    <div className="bg-[#18181b] w-full max-w-2xl rounded-2xl border border-zinc-800 shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
                         <div className="p-6 border-b border-zinc-800 flex justify-between items-center bg-zinc-900/50">
-                            <h2 className="text-xl font-black text-white">Post Scholarship</h2>
-                            <button onClick={handleCloseModal} className="text-zinc-500 hover:text-white transition-colors">
-                                <X size={24} />
-                            </button>
+                            <h2 className="text-xl font-black text-white">{isModalOpen ? 'Add Scholarship' : 'Edit Scholarship'}</h2>
+                            <button onClick={() => { setIsModalOpen(false); setIsEditModalOpen(false); }} className="text-zinc-500 hover:text-white"><X size={24} /></button>
                         </div>
-                        <form onSubmit={handleAddScholarship} className="p-6 space-y-4">
-                            <div>
-                                <label className="block text-sm font-bold text-zinc-400 mb-1.5">Scholarship Title</label>
-                                <input name="title" required type="text" className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white focus:outline-none focus:border-amber-500 transition-colors" placeholder="e.g. Global Excellence Award" />
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
+                        <div className="p-6 space-y-4 overflow-y-auto">
+                            {errorMsg && <div className="text-red-400 text-sm font-semibold">{errorMsg}</div>}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-bold text-zinc-400 mb-1.5">Name</label>
+                                    <input value={activeScholarship.name || ''} onChange={(e) => updateField('name', e.target.value)} className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-bold text-zinc-400 mb-1.5">Provider</label>
+                                    <input value={activeScholarship.provider || ''} onChange={(e) => updateField('provider', e.target.value)} className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white" />
+                                </div>
                                 <div>
                                     <label className="block text-sm font-bold text-zinc-400 mb-1.5">Amount</label>
-                                    <input name="amount" required type="number" className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white focus:outline-none focus:border-amber-500 transition-colors" placeholder="10000" />
+                                    <input type="number" min="0.01" step="0.01" value={activeScholarship.amount ?? ''} onChange={(e) => updateField('amount', e.target.value)} className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white" />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-bold text-zinc-400 mb-1.5">Currency</label>
-                                    <select name="currency" className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white focus:outline-none focus:border-amber-500 transition-colors">
-                                        <option value="USD">USD</option>
-                                        <option value="GBP">GBP</option>
-                                        <option value="EUR">EUR</option>
+                                    <select value={activeScholarship.currency || 'USD'} onChange={(e) => updateField('currency', e.target.value)} className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white">
+                                        {currencies.map(c => <option key={c} value={c}>{c}</option>)}
                                     </select>
-                                </div>
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-sm font-bold text-zinc-400 mb-1.5">Country</label>
-                                    <input name="country" type="text" className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white focus:outline-none focus:border-amber-500 transition-colors" placeholder="Global" />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-bold text-zinc-400 mb-1.5">Deadline</label>
-                                    <input name="deadline" required type="date" className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white focus:outline-none focus:border-amber-500 transition-colors" />
+                                    <input type="date" value={activeScholarship.deadline ? String(activeScholarship.deadline).slice(0, 10) : ''} onChange={(e) => updateField('deadline', e.target.value)} className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-bold text-zinc-400 mb-1.5">Country</label>
+                                    <select value={activeScholarship.country_id || ''} onChange={(e) => updateField('country_id', e.target.value)} className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white">
+                                        <option value="">Select country</option>
+                                        {countries.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                    </select>
+                                </div>
+                                <div className="md:col-span-2">
+                                    <label className="block text-sm font-bold text-zinc-400 mb-1.5">Type</label>
+                                    <input value={activeScholarship.type || ''} onChange={(e) => updateField('type', e.target.value)} className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white" />
+                                </div>
+                                <div className="md:col-span-2">
+                                    <label className="block text-sm font-bold text-zinc-400 mb-1.5">Website</label>
+                                    <input type="url" value={activeScholarship.website || ''} onChange={(e) => updateField('website', e.target.value)} className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white" />
                                 </div>
                             </div>
-                            <div className="pt-4 flex gap-3">
-                                <button type="button" onClick={handleCloseModal} className="flex-1 py-3 rounded-xl bg-zinc-800 text-zinc-300 font-bold hover:bg-zinc-700 transition-colors">Cancel</button>
-                                <button type="submit" className="flex-1 py-3 rounded-xl bg-amber-500 text-black font-bold hover:bg-amber-400 transition-colors">Post</button>
+                            <div>
+                                <label className="block text-sm font-bold text-zinc-400 mb-1.5">Description</label>
+                                <textarea rows={3} value={activeScholarship.description || ''} onChange={(e) => updateField('description', e.target.value)} className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white resize-none" />
                             </div>
-                        </form>
+                            <div>
+                                <label className="block text-sm font-bold text-zinc-400 mb-1.5">Requirements (one rule per line)</label>
+                                <textarea
+                                    rows={4}
+                                    value={activeScholarship.requirements || '- '}
+                                    onChange={(e) => updateField('requirements', normalizeRequirementsInput(e.target.value))}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                            const value = activeScholarship.requirements || '';
+                                            if (!value.endsWith('\n')) {
+                                                e.preventDefault();
+                                                updateField('requirements', `${value}\n- `);
+                                            }
+                                        }
+                                    }}
+                                    className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white resize-none"
+                                />
+                            </div>
+                            <div className="pt-2 flex gap-3">
+                                <button onClick={() => { setIsModalOpen(false); setIsEditModalOpen(false); }} className="flex-1 py-3 rounded-xl bg-zinc-800 text-zinc-300 font-bold hover:bg-zinc-700">Cancel</button>
+                                <button onClick={() => upsertScholarship(isModalOpen ? 'create' : 'update')} className="flex-1 py-3 rounded-xl bg-amber-500 text-black font-bold hover:bg-amber-400">
+                                    {isModalOpen ? 'Create Scholarship' : 'Update Scholarship'}
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             )}
 
-            {/* Edit Scholarship Modal */}
-            {isEditModalOpen && editingScholarship && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-                    <div className="bg-[#18181b] w-full max-w-lg rounded-2xl border border-zinc-800 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
-                        <div className="p-6 border-b border-zinc-800 flex justify-between items-center bg-zinc-900/50">
-                            <h2 className="text-xl font-black text-white">Edit Scholarship</h2>
-                            <button onClick={() => {
-                                setIsEditModalOpen(false);
-                                setEditingScholarship(null);
-                            }} className="text-zinc-500 hover:text-white transition-colors">
-                                <X size={24} />
-                            </button>
+            {isDetailsModalOpen && activeScholarship && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+                    <div className="bg-[#18181b] w-full max-w-2xl rounded-2xl border border-zinc-800 shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+                        <div className="p-5 border-b border-zinc-800 flex justify-between items-center bg-zinc-900/50">
+                            <h2 className="text-lg font-black text-white">Scholarship Details</h2>
+                            <button onClick={() => setIsDetailsModalOpen(false)} className="text-zinc-500 hover:text-white"><X size={22} /></button>
                         </div>
-                        <form onSubmit={handleUpdateScholarship} className="p-6 space-y-4">
-                            <div>
-                                <label className="block text-sm font-bold text-zinc-400 mb-1.5">Scholarship Title</label>
-                                <input name="title" required type="text" defaultValue={editingScholarship.name} className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white focus:outline-none focus:border-amber-500 transition-colors" />
+                        <div className="p-5 grid grid-cols-2 gap-3 text-sm overflow-y-auto">
+                            <div className="text-zinc-300"><span className="text-zinc-500">Name:</span> {activeScholarship.name}</div>
+                            <div className="text-zinc-300"><span className="text-zinc-500">Provider:</span> {activeScholarship.provider}</div>
+                            <div className="text-zinc-300"><span className="text-zinc-500">Country:</span> {activeScholarship.country}</div>
+                            <div className="text-zinc-300"><span className="text-zinc-500">Type:</span> {activeScholarship.type}</div>
+                            <div className="text-zinc-300"><span className="text-zinc-500">Deadline:</span> {formatDate(activeScholarship.deadline)}</div>
+                            <div className="text-zinc-300"><span className="text-zinc-500">Amount:</span> {activeScholarship.currency} {Number(activeScholarship.amount ?? 0).toLocaleString()}</div>
+                            <div className="text-zinc-300 col-span-2">
+                                <span className="text-zinc-500">Website:</span>{' '}
+                                {activeScholarship.website ? (
+                                    <a href={activeScholarship.website} target="_blank" rel="noreferrer" className="text-amber-400 hover:text-amber-300 underline break-all">
+                                        {activeScholarship.website}
+                                    </a>
+                                ) : '—'}
                             </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-sm font-bold text-zinc-400 mb-1.5">Amount</label>
-                                    <input name="amount" required type="number" defaultValue={Number(editingScholarship.amount ?? 0)} className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white focus:outline-none focus:border-amber-500 transition-colors" />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-bold text-zinc-400 mb-1.5">Currency</label>
-                                    <select name="currency" defaultValue={editingScholarship.currency || 'USD'} className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white focus:outline-none focus:border-amber-500 transition-colors">
-                                        <option value="USD">USD</option>
-                                        <option value="GBP">GBP</option>
-                                        <option value="EUR">EUR</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-sm font-bold text-zinc-400 mb-1.5">Country</label>
-                                    <input name="country" type="text" defaultValue={editingScholarship.country} className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white focus:outline-none focus:border-amber-500 transition-colors" />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-bold text-zinc-400 mb-1.5">Deadline</label>
-                                    <input name="deadline" required type="date" defaultValue={editingScholarship.deadline} className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white focus:outline-none focus:border-amber-500 transition-colors" />
+                            <div className="text-zinc-300 col-span-2"><span className="text-zinc-500">Description:</span> {activeScholarship.description || '—'}</div>
+                            <div className="text-zinc-300 col-span-2">
+                                <span className="text-zinc-500 block mb-2">Requirements:</span>
+                                <div className="flex flex-wrap gap-2">
+                                    {(Array.isArray(activeScholarship.requirements) ? activeScholarship.requirements : []).length > 0 ? (
+                                        (Array.isArray(activeScholarship.requirements) ? activeScholarship.requirements : []).map((item, idx) => (
+                                            <span key={`${item}-${idx}`} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-zinc-800 border border-zinc-700 text-zinc-200 text-xs">
+                                                <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                                                {item}
+                                            </span>
+                                        ))
+                                    ) : (
+                                        <span className="text-zinc-400">—</span>
+                                    )}
                                 </div>
                             </div>
-                            <div className="pt-4 flex gap-3">
-                                <button type="button" onClick={() => {
-                                    setIsEditModalOpen(false);
-                                    setEditingScholarship(null);
-                                }} className="flex-1 py-3 rounded-xl bg-zinc-800 text-zinc-300 font-bold hover:bg-zinc-700 transition-colors">Cancel</button>
-                                <button type="submit" className="flex-1 py-3 rounded-xl bg-amber-500 text-black font-bold hover:bg-amber-400 transition-colors">Update</button>
-                            </div>
-                        </form>
+                        </div>
                     </div>
                 </div>
             )}
+
+            <ConfirmDialog
+                isOpen={deleteConfirmId != null}
+                onClose={() => setDeleteConfirmId(null)}
+                onConfirm={() => handleDeleteScholarship(deleteConfirmId)}
+                title="Delete scholarship?"
+                confirmText="Delete"
+                cancelText="Cancel"
+                message="This action cannot be undone. Are you sure you want to delete this scholarship?"
+            />
         </div>
     );
 };

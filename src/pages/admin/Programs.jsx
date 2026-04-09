@@ -1,169 +1,255 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Search, Plus, Filter, MoreHorizontal, BookOpen, MapPin, X, Edit2, Trash2 } from 'lucide-react';
+import { Search, Plus, Filter, MoreHorizontal, MapPin, X, Edit2, Trash2, Eye, Clock } from 'lucide-react';
 import api from '../../services/api';
+import ConfirmDialog from '../../components/ConfirmDialog';
+
+const toEligibilityText = (eligibility) =>
+    (Array.isArray(eligibility) ? eligibility : [])
+        .map(item => {
+            const trimmed = String(item || '').trim();
+            if (!trimmed) return '';
+            return trimmed.startsWith('- ') ? trimmed : `- ${trimmed}`;
+        })
+        .filter(Boolean)
+        .join('\n');
+
+const fromEligibilityText = (text) =>
+    String(text || '')
+        .split('\n')
+        .map(v => v.trim().replace(/^-+\s*/, ''))
+        .filter(Boolean);
+
+const normalizeEligibility = (eligibility) => {
+    if (Array.isArray(eligibility)) return eligibility;
+    if (typeof eligibility === 'string') return fromEligibilityText(eligibility);
+    return [];
+};
+
+const normalizeEligibilityInput = (raw) => {
+    const lines = String(raw || '').split('\n');
+    return lines
+        .map((line) => {
+            const trimmed = line.trim();
+            if (!trimmed) return '- ';
+            if (trimmed.startsWith('- ')) return trimmed;
+            return `- ${trimmed.replace(/^-+\s*/, '')}`;
+        })
+        .join('\n');
+};
+
+const formatDate = (value) => {
+    if (!value) return '—';
+    return new Date(value).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+};
 
 const ManagePrograms = () => {
-    const [searchTerm, setSearchTerm] = useState('');
     const [searchParams, setSearchParams] = useSearchParams();
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-    const [editingProgram, setEditingProgram] = useState(null);
-    const [localPrograms, setLocalPrograms] = useState([]);
-    const [allPrograms, setAllPrograms] = useState([]);
+    const [programs, setPrograms] = useState([]);
+    const [universities, setUniversities] = useState([]);
+    const [currencies, setCurrencies] = useState([]);
+    const [filters, setFilters] = useState({ countries: [], durations: [], degrees: [] });
+    const [loading, setLoading] = useState(true);
 
-    useEffect(() => {
-        api.get('/programs')
-            .then(data => {
-                const mapped = data.map(item => ({
-                    id: item.id,
-                    name: item.program,
-                    universityName: item.university,
-                    city: item.city,
-                    location: item.country,
-                    website: item.website,
-                    uniImage: item.logo || item.image,
-                    fees: `${item.currency}${Number(item.tuition).toLocaleString()}`,
-                    duration: item.duration || '2 Years'
-                }));
-                setAllPrograms(mapped);
-                setLocalPrograms(mapped);
-            })
-            .catch(console.error);
-    }, []);
-
+    const [searchTerm, setSearchTerm] = useState('');
     const [filterCountry, setFilterCountry] = useState('All');
+    const [filterDegree, setFilterDegree] = useState('All');
+    const [filterDuration, setFilterDuration] = useState('All');
+    const [tuitionMax, setTuitionMax] = useState(null);
     const [showFilterDropdown, setShowFilterDropdown] = useState(false);
+    const [sortBy, setSortBy] = useState('id');
+
     const [openMenuId, setOpenMenuId] = useState(null);
     const [deleteConfirmId, setDeleteConfirmId] = useState(null);
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
+    const [activeProgram, setActiveProgram] = useState(null);
+    const [errorMsg, setErrorMsg] = useState('');
+    const [isSaving, setIsSaving] = useState(false);
 
-    // Check for URL action
-    useEffect(() => {
-        if (searchParams.get('action') === 'add') {
-            setIsModalOpen(true);
+    const loadData = async () => {
+        setLoading(true);
+        try {
+            const [programsData, universitiesData, filterData, currenciesData] = await Promise.all([
+                api.get('/programs'),
+                api.get('/programs/universities'),
+                api.get('/programs/filters'),
+                api.get('/programs/currencies')
+            ]);
+            setPrograms(programsData);
+            setUniversities(universitiesData);
+            setCurrencies(Array.isArray(currenciesData) && currenciesData.length ? currenciesData : ['USD']);
+            setFilters({
+                countries: filterData.countries || [],
+                durations: filterData.durations || [],
+                degrees: filterData.degrees || []
+            });
+        } finally {
+            setLoading(false);
         }
+    };
+
+    useEffect(() => {
+        loadData().catch(console.error);
+    }, []);
+
+    useEffect(() => {
+        if (searchParams.get('action') === 'add') setIsModalOpen(true);
     }, [searchParams]);
 
-    const handleCloseModal = () => {
-        setIsModalOpen(false);
-        setSearchParams({}); // Clear query params
-    };
+    const maxTuition = useMemo(
+        () => Math.max(0, ...programs.map(p => Number(p.standard_tuition ?? p.tuition_amount ?? 0))),
+        [programs]
+    );
 
-    const handleAddProgram = async (e) => {
-        e.preventDefault();
-        const formData = new FormData(e.target);
-        try {
-            await api.post('/programs', {
-                program: formData.get('programName'),
-                university: formData.get('university'),
-                city: formData.get('city'),
-                country: formData.get('country'),
-                tuition: Number(formData.get('tuition')),
-                currency: 'USD',
-                website: formData.get('website') || null,
-                eligibility: [],
-                duration: '2 Years'
+    const filteredPrograms = useMemo(() => {
+        return programs
+            .filter((p) => {
+                const tuition = Number(p.standard_tuition ?? p.tuition_amount ?? 0);
+                const matchesSearch =
+                    (p.program || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    (p.university || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    (p.field_of_study || '').toLowerCase().includes(searchTerm.toLowerCase());
+                const matchesCountry = filterCountry === 'All' || p.country === filterCountry;
+                const matchesDegree = filterDegree === 'All' || p.degree_level === filterDegree;
+                const matchesDuration = filterDuration === 'All' || p.duration === filterDuration;
+                const matchesTuition = tuitionMax == null || tuition <= tuitionMax;
+                return matchesSearch && matchesCountry && matchesDegree && matchesDuration && matchesTuition;
+            })
+            .sort((a, b) => {
+                if (sortBy === 'price_low') return Number(a.standard_tuition ?? a.tuition_amount) - Number(b.standard_tuition ?? b.tuition_amount);
+                if (sortBy === 'price_high') return Number(b.standard_tuition ?? b.tuition_amount) - Number(a.standard_tuition ?? a.tuition_amount);
+                return a.id - b.id;
             });
-            const fresh = await api.get('/programs');
-            const mapped = fresh.map(item => ({
-                id: item.id, name: item.program, universityName: item.university,
-                city: item.city,
-                website: item.website,
-                location: item.country, uniImage: item.logo || item.image,
-                fees: `${item.currency}${Number(item.tuition).toLocaleString()}`, duration: item.duration || '2 Years'
-            }));
-            setAllPrograms(mapped); setLocalPrograms(mapped);
-            handleCloseModal();
-        } catch (err) {
-            console.error('Failed to add program:', err.message);
-            alert('Failed to add program: ' + err.message);
-        }
+    }, [programs, searchTerm, filterCountry, filterDegree, filterDuration, tuitionMax, sortBy]);
+
+    const openAddModal = () => {
+        setErrorMsg('');
+        setActiveProgram({
+            university_id: universities[0]?.id || '',
+            name: '',
+            degree_level: '',
+            field_of_study: '',
+            deadline: '',
+            tuition_amount: '',
+            currency: currencies[0] || 'USD',
+            duration: '',
+            description: '',
+            eligibility: '- ',
+            website: ''
+        });
+        setIsModalOpen(true);
     };
 
-    const handleEditProgram = (prog) => {
-        setEditingProgram(prog);
-        setIsEditModalOpen(true);
+    const openEditModal = (p) => {
         setOpenMenuId(null);
+        setErrorMsg('');
+        setActiveProgram({
+            ...p,
+            eligibility: toEligibilityText(p.eligibility)
+        });
+        setIsEditModalOpen(true);
     };
 
-    const handleUpdateProgram = async (e) => {
-        e.preventDefault();
-        const formData = new FormData(e.target);
+    const openDetailsModal = (p) => {
+        setOpenMenuId(null);
+        setActiveProgram(p);
+        setIsDetailsModalOpen(true);
+    };
+
+    const upsertProgram = async (mode) => {
+        setIsSaving(true);
         try {
-            await api.put(`/programs/${editingProgram.id}`, {
-                program: formData.get('programName'),
-                university: formData.get('university'),
-                city: formData.get('city'),
-                country: formData.get('country'),
-                tuition: Number(formData.get('tuition')),
-                currency: 'USD',
-                website: formData.get('website') || null,
-                eligibility: [],
-                duration: editingProgram.duration || '2 Years'
-            });
-            const fresh = await api.get('/programs');
-            const mapped = fresh.map(item => ({
-                id: item.id, name: item.program, universityName: item.university,
-                city: item.city,
-                website: item.website,
-                location: item.country, uniImage: item.logo || item.image,
-                fees: `${item.currency}${Number(item.tuition).toLocaleString()}`, duration: item.duration || '2 Years'
-            }));
-            setAllPrograms(mapped); setLocalPrograms(mapped);
-            setIsEditModalOpen(false); setEditingProgram(null);
+            const requiredFields = [
+                ['university_id', activeProgram.university_id],
+                ['name', activeProgram.name],
+                ['degree_level', activeProgram.degree_level],
+                ['field_of_study', activeProgram.field_of_study],
+                ['deadline', activeProgram.deadline],
+                ['tuition_amount', activeProgram.tuition_amount],
+                ['currency', activeProgram.currency],
+                ['duration', activeProgram.duration],
+                ['description', activeProgram.description],
+                ['eligibility', activeProgram.eligibility],
+                ['website', activeProgram.website]
+            ];
+            const missing = requiredFields.filter(([, value]) => String(value ?? '').trim() === '');
+            if (missing.length > 0) {
+                setErrorMsg('All fields are mandatory.');
+                return;
+            }
+            const tuition = Number(activeProgram.tuition_amount);
+            if (!Number.isFinite(tuition) || tuition <= 0) {
+                setErrorMsg('Tuition amount must be a positive number.');
+                return;
+            }
+            const payload = {
+                university_id: Number(activeProgram.university_id),
+                name: activeProgram.name,
+                degree_level: activeProgram.degree_level,
+                field_of_study: activeProgram.field_of_study,
+                deadline: activeProgram.deadline || null,
+                tuition_amount: tuition,
+                currency: String(activeProgram.currency || 'USD').toUpperCase(),
+                duration: activeProgram.duration,
+                description: activeProgram.description,
+                eligibility: fromEligibilityText(activeProgram.eligibility),
+                website: activeProgram.website
+            };
+            if (mode === 'create') await api.post('/programs', payload);
+            else await api.put(`/programs/${activeProgram.id}`, payload);
+            await loadData();
+            setIsModalOpen(false);
+            setIsEditModalOpen(false);
+            setActiveProgram(null);
+            setSearchParams({});
+            setIsSaving(false);
         } catch (err) {
-            console.error('Failed to update program:', err.message);
-            alert('Failed to update program: ' + err.message);
+            setIsSaving(false);
+            setErrorMsg(err.message || 'Failed to save program');
         }
     };
 
     const handleDeleteProgram = async (id) => {
         try {
             await api.delete(`/programs/${id}`);
-            setLocalPrograms(prev => prev.filter(p => p.id !== id));
-            setAllPrograms(prev => prev.filter(p => p.id !== id));
-            setDeleteConfirmId(null); setOpenMenuId(null);
+            await loadData();
+            setDeleteConfirmId(null);
+            setOpenMenuId(null);
         } catch (err) {
-            console.error('Failed to delete program:', err.message);
-            alert('Failed to delete program: ' + err.message);
+            alert(`Failed to delete program: ${err.message}`);
         }
     };
 
-    const countries = ['All', ...new Set(allPrograms.map(p => p.location))];
-
-    const filteredPrograms = localPrograms.filter(prog => {
-        const matchesSearch = prog.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            prog.universityName.toLowerCase().includes(searchTerm.toLowerCase());
-        const matchesCountry = filterCountry === 'All' || prog.location === filterCountry;
-        return matchesSearch && matchesCountry;
-    });
+    const updateField = (key, value) => setActiveProgram(prev => ({ ...prev, [key]: value }));
+    const selectedUni = universities.find(u => Number(u.id) === Number(activeProgram?.university_id));
 
     return (
         <div className="space-y-8 animate-in fade-in duration-500 max-w-7xl mx-auto">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
                     <h1 className="text-3xl font-black text-white tracking-tight">Programs</h1>
-                    <p className="text-zinc-400 font-medium">Manage university programs and details.</p>
+                    <p className="text-zinc-400 font-medium">Manage normalized program records from database.</p>
                 </div>
                 <button
-                    onClick={() => setIsModalOpen(true)}
-                    className="flex items-center gap-2 px-5 py-3 bg-amber-500 hover:bg-amber-400 text-black font-bold rounded-xl shadow-lg shadow-amber-900/20 transition-all hover:-translate-y-0.5 active:translate-y-0"
+                    onClick={openAddModal}
+                    className="flex items-center gap-2 px-5 py-3 bg-amber-500 hover:bg-amber-400 text-black font-bold rounded-xl shadow-lg shadow-amber-900/20 transition-all hover:-translate-y-0.5"
                 >
                     <Plus size={18} />
                     <span>Add Program</span>
                 </button>
             </div>
 
-            {/* Filters Section */}
-            <div className="bg-[#18181b] p-4 rounded-2xl border border-zinc-800 flex flex-col md:flex-row gap-4">
+            <div className="bg-[#18181b] p-4 rounded-2xl border border-zinc-800 flex flex-col lg:flex-row gap-4">
                 <div className="flex-1 relative">
                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" size={20} />
                     <input
                         type="text"
-                        placeholder="Search programs, universities..."
+                        placeholder="Search by name, university, field..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        className="w-full pl-12 pr-4 py-3 bg-zinc-900/50 border border-zinc-700 rounded-xl text-white placeholder-zinc-500 focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/50 transition-all"
+                        className="w-full pl-12 pr-4 py-3 bg-zinc-900/50 border border-zinc-700 rounded-xl text-white placeholder-zinc-500 focus:outline-none focus:border-amber-500/50"
                     />
                 </div>
                 <div className="flex gap-2 relative">
@@ -172,291 +258,262 @@ const ManagePrograms = () => {
                         className="px-4 py-3 bg-zinc-900 border border-zinc-700 rounded-xl text-zinc-300 font-bold hover:bg-zinc-800 flex items-center gap-2"
                     >
                         <Filter size={18} />
-                        <span>Filter</span>
-                        {filterCountry !== 'All' && (
-                            <span className="ml-1 px-2 py-0.5 bg-amber-500/20 text-amber-400 text-xs rounded-full">1</span>
-                        )}
                     </button>
-
-                    {/* Filter Dropdown */}
                     {showFilterDropdown && (
-                        <div className="absolute right-0 top-14 w-56 bg-[#18181b] border border-zinc-800 rounded-xl shadow-2xl z-50 animate-in slide-in-from-top-2 duration-200">
-                            <div className="p-3 border-b border-zinc-800">
-                                <h4 className="font-bold text-white text-sm">Filter by Country</h4>
+                        <div className="absolute right-0 top-14 w-72 bg-[#18181b] border border-zinc-800 rounded-xl shadow-2xl z-50 p-3 space-y-3">
+                            <select value={filterCountry} onChange={(e) => setFilterCountry(e.target.value)} className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-zinc-200">
+                                <option value="All">All Countries</option>
+                                {filters.countries.map(c => <option key={c} value={c}>{c}</option>)}
+                            </select>
+                            <select value={filterDegree} onChange={(e) => setFilterDegree(e.target.value)} className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-zinc-200">
+                                <option value="All">All Degrees</option>
+                                {filters.degrees.map(d => <option key={d} value={d}>{d}</option>)}
+                            </select>
+                            <select value={filterDuration} onChange={(e) => setFilterDuration(e.target.value)} className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-zinc-200">
+                                <option value="All">All Durations</option>
+                                {filters.durations.map(d => <option key={d} value={d}>{d}</option>)}
+                            </select>
+                            <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-zinc-200">
+                                <option value="id">Default Sort</option>
+                                <option value="price_high">Tuition: High to Low</option>
+                                <option value="price_low">Tuition: Low to High</option>
+                            </select>
+                            <div>
+                                <label className="text-xs text-zinc-400 font-bold">
+                                    Max Standard Tuition: {(tuitionMax == null ? maxTuition : tuitionMax).toLocaleString()}
+                                </label>
+                                <input
+                                    type="range"
+                                    min="0"
+                                    max={maxTuition || 1000}
+                                    step="1000"
+                                    value={tuitionMax ?? maxTuition}
+                                    onChange={(e) => setTuitionMax(Number(e.target.value))}
+                                    className="w-full"
+                                />
                             </div>
-                            <div className="p-2 max-h-64 overflow-y-auto">
-                                {countries.map(country => (
-                                    <button
-                                        key={country}
-                                        onClick={() => {
-                                            setFilterCountry(country);
-                                            setShowFilterDropdown(false);
-                                        }}
-                                        className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition-colors ${filterCountry === country
-                                            ? 'bg-amber-500/20 text-amber-400'
-                                            : 'text-zinc-400 hover:bg-zinc-800 hover:text-white'
-                                            }`}
-                                    >
-                                        {country}
-                                    </button>
-                                ))}
-                            </div>
-                            {filterCountry !== 'All' && (
-                                <div className="p-2 border-t border-zinc-800">
-                                    <button
-                                        onClick={() => {
-                                            setFilterCountry('All');
-                                            setShowFilterDropdown(false);
-                                        }}
-                                        className="w-full px-3 py-2 text-xs font-bold text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
-                                    >
-                                        Clear Filter
-                                    </button>
-                                </div>
-                            )}
+                            <button
+                                onClick={() => { setFilterCountry('All'); setFilterDegree('All'); setFilterDuration('All'); setSortBy('id'); setTuitionMax(null); setShowFilterDropdown(false); }}
+                                className="w-full px-3 py-2 text-xs font-bold text-red-400 hover:bg-red-500/10 rounded-lg"
+                            >
+                                Reset Filters
+                            </button>
                         </div>
                     )}
                 </div>
             </div>
 
-            {/* Content List as Cards */}
             <div className="grid grid-cols-1 gap-4">
-                {filteredPrograms.map((prog, idx) => (
-                    <div key={idx} className="group bg-[#18181b] p-6 rounded-2xl border border-zinc-800 hover:border-amber-500/30 hover:bg-zinc-800/80 transition-all shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-                        <div className="flex items-start gap-5">
-                            <div>
-                                <h3 className="text-lg font-bold text-white mb-1 group-hover:text-amber-400 transition-colors">{prog.name}</h3>
-                                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-zinc-400 font-medium">
-                                    <span className="flex items-center gap-1.5 ">
-                                        <span className="w-1.5 h-1.5 rounded-full bg-zinc-600"></span>
-                                        {prog.universityName}
-                                    </span>
-                                    <span className="flex items-center gap-1.5">
-                                        <MapPin size={14} /> {prog.location}
-                                    </span>
-                                </div>
+                {!loading && filteredPrograms.map((p) => (
+                    <div key={p.id} className="group bg-[#18181b] p-5 rounded-2xl border border-zinc-800 hover:border-amber-500/30 transition-all flex items-center justify-between gap-4">
+                        <div className="min-w-0">
+                            <h3 className="text-lg font-bold text-white group-hover:text-amber-400 transition-colors line-clamp-1">{p.program}</h3>
+                            <div className="text-sm text-zinc-400 flex flex-wrap items-center gap-3 mt-1">
+                                <span>{p.university}</span>
+                                <span className="flex items-center gap-1"><MapPin size={14} />{p.city}, {p.country}</span>
+                                <span className="flex items-center gap-1"><Clock size={14} />{p.duration}</span>
                             </div>
                         </div>
-
-                        <div className="flex items-center gap-6 w-full md:w-auto justify-between md:justify-end border-t md:border-t-0 border-zinc-800 pt-4 md:pt-0">
+                        <div className="flex items-center gap-4">
                             <div className="text-right">
-                                <span className="block text-white font-bold text-lg">{prog.fees}</span>
-                                <span className="text-xs font-bold text-zinc-500 uppercase tracking-widest">{prog.duration}</span>
+                                <div className="text-white font-bold">{p.currency} {Number(p.tuition_amount ?? 0).toLocaleString()}</div>
+                                <div className="text-[11px] text-zinc-500">USD: {Number(p.standard_tuition ?? 0).toLocaleString()}</div>
                             </div>
-                            <div className="flex gap-2 relative">
-                                <button
-                                    onClick={() => setOpenMenuId(openMenuId === prog.id ? null : prog.id)}
-                                    className="p-2 hover:bg-zinc-700 rounded-lg text-zinc-400 transition-colors"
-                                >
+                            <div className="relative">
+                                <button onClick={() => setOpenMenuId(openMenuId === p.id ? null : p.id)} className="p-2 hover:bg-zinc-700 rounded-lg text-zinc-400">
                                     <MoreHorizontal size={20} />
                                 </button>
-
-                                {/* Three-dot Menu */}
-                                {openMenuId === prog.id && (
-                                    <div className="absolute right-0 top-10 w-48 bg-[#18181b] border border-zinc-800 rounded-xl shadow-2xl z-50 animate-in slide-in-from-top-2 duration-200">
-                                        <div className="p-2">
-                                            <button
-                                                onClick={() => handleEditProgram(prog)}
-                                                className="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium text-zinc-300 hover:bg-zinc-800 hover:text-white rounded-lg transition-colors"
-                                            >
-                                                <Edit2 size={16} />
-                                                Edit Program
-                                            </button>
-                                            <button
-                                                onClick={() => {
-                                                    setDeleteConfirmId(prog.id);
-                                                    setOpenMenuId(null);
-                                                }}
-                                                className="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
-                                            >
-                                                <Trash2 size={16} />
-                                                Delete Program
-                                            </button>
-                                        </div>
+                                {openMenuId === p.id && (
+                                    <div className="absolute right-0 top-10 w-48 bg-[#18181b] border border-zinc-800 rounded-xl shadow-2xl z-50 p-2">
+                                        <button onClick={() => openDetailsModal(p)} className="w-full flex items-center gap-3 px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-800 rounded-lg">
+                                            <Eye size={16} /> See Details
+                                        </button>
+                                        <button onClick={() => openEditModal(p)} className="w-full flex items-center gap-3 px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-800 rounded-lg">
+                                            <Edit2 size={16} /> Edit Program
+                                        </button>
+                                        <button onClick={() => { setDeleteConfirmId(p.id); setOpenMenuId(null); }} className="w-full flex items-center gap-3 px-3 py-2 text-sm text-red-400 hover:bg-red-500/10 rounded-lg">
+                                            <Trash2 size={16} /> Delete Program
+                                        </button>
                                     </div>
                                 )}
                             </div>
                         </div>
                     </div>
                 ))}
-
-                {filteredPrograms.length === 0 && (
-                    <div className="p-12 text-center text-zinc-500">
-                        No programs found matching your search.
-                    </div>
+                {!loading && filteredPrograms.length === 0 && (
+                    <div className="p-12 text-center text-zinc-500">No programs found.</div>
                 )}
             </div>
 
-            {/* Add Program Modal */}
-            {isModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-                    <div className="bg-[#18181b] w-full max-w-lg rounded-2xl border border-zinc-800 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+            {(isModalOpen || isEditModalOpen) && activeProgram && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+                    <div className="bg-[#18181b] w-full max-w-2xl rounded-2xl border border-zinc-800 shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
                         <div className="p-6 border-b border-zinc-800 flex justify-between items-center bg-zinc-900/50">
-                            <h2 className="text-xl font-black text-white">Add New Program</h2>
-                            <button onClick={handleCloseModal} className="text-zinc-500 hover:text-white transition-colors">
-                                <X size={24} />
-                            </button>
+                            <h2 className="text-xl font-black text-white">{isModalOpen ? 'Add Program' : 'Edit Program'}</h2>
+                            <button onClick={() => { setIsModalOpen(false); setIsEditModalOpen(false); }} className="text-zinc-500 hover:text-white"><X size={24} /></button>
                         </div>
-                        <form onSubmit={handleAddProgram} className="p-6 space-y-4">
-                            <div>
-                                <label className="block text-sm font-bold text-zinc-400 mb-1.5">Program Name</label>
-                                <input name="programName" required type="text" className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white focus:outline-none focus:border-amber-500 transition-colors" placeholder="e.g. MSc Computer Science" />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-bold text-zinc-400 mb-1.5">University</label>
-                                <input name="university" required type="text" className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white focus:outline-none focus:border-amber-500 transition-colors" placeholder="e.g. Stanford University" />
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
+                        <div className="p-6 space-y-4 overflow-y-auto">
+                            {errorMsg && <div className="text-red-400 text-sm font-semibold">{errorMsg}</div>}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-sm font-bold text-zinc-400 mb-1.5">City</label>
-                                    <input name="city" required type="text" className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white focus:outline-none focus:border-amber-500 transition-colors" placeholder="e.g. London" />
+                                    <label className="block text-sm font-bold text-zinc-400 mb-1.5">University</label>
+                                    <select
+                                        value={activeProgram.university_id}
+                                        disabled={isEditModalOpen}
+                                        onChange={(e) => updateField('university_id', e.target.value)}
+                                        className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white disabled:bg-zinc-800/60 disabled:text-zinc-400 disabled:border-zinc-600 disabled:border-dashed disabled:cursor-not-allowed"
+                                    >
+                                        {universities.map(u => (
+                                            <option key={u.id} value={u.id}>{u.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                {isEditModalOpen && (
+                                    <>
+                                        <div>
+                                            <label className="block text-sm font-bold text-zinc-400 mb-1.5">City</label>
+                                            <input readOnly value={activeProgram.city || selectedUni?.city || ''} className="w-full px-4 py-3 rounded-xl bg-zinc-800/60 border border-dashed border-zinc-600 text-zinc-300 cursor-not-allowed" />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-bold text-zinc-400 mb-1.5">Country</label>
+                                            <input readOnly value={activeProgram.country || selectedUni?.country || ''} className="w-full px-4 py-3 rounded-xl bg-zinc-800/60 border border-dashed border-zinc-600 text-zinc-300 cursor-not-allowed" />
+                                        </div>
+                                    </>
+                                )}
+                                <div>
+                                    <label className="block text-sm font-bold text-zinc-400 mb-1.5">Name</label>
+                                    <input value={activeProgram.name || ''} onChange={(e) => updateField('name', e.target.value)} className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white" />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-bold text-zinc-400 mb-1.5">Country</label>
-                                    <input name="country" required type="text" className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white focus:outline-none focus:border-amber-500 transition-colors" placeholder="e.g. USA" />
+                                    <label className="block text-sm font-bold text-zinc-400 mb-1.5">Degree Level</label>
+                                    <select value={activeProgram.degree_level || ''} onChange={(e) => updateField('degree_level', e.target.value)} className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white">
+                                        <option value="">Select degree level</option>
+                                        <option value="Masters">Masters</option>
+                                        <option value="PHD">PHD</option>
+                                    </select>
                                 </div>
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-sm font-bold text-zinc-400 mb-1.5">Tuition (USD)</label>
-                                    <input name="tuition" required type="number" className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white focus:outline-none focus:border-amber-500 transition-colors" placeholder="50000" />
+                                    <label className="block text-sm font-bold text-zinc-400 mb-1.5">Field of Study</label>
+                                    <input value={activeProgram.field_of_study || ''} onChange={(e) => updateField('field_of_study', e.target.value)} className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-bold text-zinc-400 mb-1.5">Deadline</label>
+                                    <input type="date" value={activeProgram.deadline ? String(activeProgram.deadline).slice(0, 10) : ''} onChange={(e) => updateField('deadline', e.target.value)} className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-bold text-zinc-400 mb-1.5">Tuition Amount</label>
+                                    <input type="number" min="0.01" step="0.01" value={activeProgram.tuition_amount ?? ''} onChange={(e) => updateField('tuition_amount', e.target.value)} className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-bold text-zinc-400 mb-1.5">Currency</label>
+                                    <select value={activeProgram.currency || 'USD'} onChange={(e) => updateField('currency', e.target.value)} className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white">
+                                        {currencies.map(c => (
+                                            <option key={c} value={c}>{c}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-bold text-zinc-400 mb-1.5">Duration (Years)</label>
+                                    <input value={activeProgram.duration || ''} onChange={(e) => updateField('duration', e.target.value)} className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white" />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-bold text-zinc-400 mb-1.5">Website</label>
-                                    <input name="website" type="url" className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white focus:outline-none focus:border-amber-500 transition-colors" placeholder="https://..." />
+                                    <input type="url" value={activeProgram.website || ''} onChange={(e) => updateField('website', e.target.value)} className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white" />
                                 </div>
-                            </div>
-                            <div className="pt-4 flex gap-3">
-                                <button type="button" onClick={handleCloseModal} className="flex-1 py-3 rounded-xl bg-zinc-800 text-zinc-300 font-bold hover:bg-zinc-700 transition-colors">Cancel</button>
-                                <button type="submit" className="flex-1 py-3 rounded-xl bg-amber-500 text-black font-bold hover:bg-amber-400 transition-colors">Create Program</button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            )}
-
-            {/* Edit Program Modal */}
-            {isEditModalOpen && editingProgram && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-                    <div className="bg-[#18181b] w-full max-w-lg rounded-2xl border border-zinc-800 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
-                        <div className="p-6 border-b border-zinc-800 flex justify-between items-center bg-zinc-900/50">
-                            <h2 className="text-xl font-black text-white">Edit Program</h2>
-                            <button onClick={() => {
-                                setIsEditModalOpen(false);
-                                setEditingProgram(null);
-                            }} className="text-zinc-500 hover:text-white transition-colors">
-                                <X size={24} />
-                            </button>
-                        </div>
-                        <form onSubmit={handleUpdateProgram} className="p-6 space-y-4">
-                            <div>
-                                <label className="block text-sm font-bold text-zinc-400 mb-1.5">Program Name</label>
-                                <input
-                                    name="programName"
-                                    required
-                                    type="text"
-                                    defaultValue={editingProgram.name}
-                                    className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white focus:outline-none focus:border-amber-500 transition-colors"
-                                />
                             </div>
                             <div>
-                                <label className="block text-sm font-bold text-zinc-400 mb-1.5">University</label>
-                                <input
-                                    name="university"
-                                    required
-                                    type="text"
-                                    defaultValue={editingProgram.universityName}
-                                    className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white focus:outline-none focus:border-amber-500 transition-colors"
-                                />
+                                <label className="block text-sm font-bold text-zinc-400 mb-1.5">Description</label>
+                                <textarea rows={3} value={activeProgram.description || ''} onChange={(e) => updateField('description', e.target.value)} className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white resize-none" />
                             </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-sm font-bold text-zinc-400 mb-1.5">City</label>
-                                    <input
-                                        name="city"
-                                        required
-                                        type="text"
-                                        defaultValue={editingProgram.city || ''}
-                                        className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white focus:outline-none focus:border-amber-500 transition-colors"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-bold text-zinc-400 mb-1.5">Country</label>
-                                    <input
-                                        name="country"
-                                        required
-                                        type="text"
-                                        defaultValue={editingProgram.location}
-                                        className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white focus:outline-none focus:border-amber-500 transition-colors"
-                                    />
-                                </div>
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-sm font-bold text-zinc-400 mb-1.5">Tuition (USD)</label>
-                                    <input
-                                        name="tuition"
-                                        required
-                                        type="number"
-                                        defaultValue={editingProgram.fees.replace(/[^0-9]/g, '')}
-                                        className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white focus:outline-none focus:border-amber-500 transition-colors"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-bold text-zinc-400 mb-1.5">Website</label>
-                                    <input
-                                        name="website"
-                                        type="url"
-                                        defaultValue={editingProgram.website || ''}
-                                        className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white focus:outline-none focus:border-amber-500 transition-colors"
-                                    />
-                                </div>
-                            </div>
-                            <div className="pt-4 flex gap-3">
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        setIsEditModalOpen(false);
-                                        setEditingProgram(null);
+                            <div>
+                                <label className="block text-sm font-bold text-zinc-400 mb-1.5">Eligibility (one rule per line)</label>
+                                <textarea
+                                    rows={4}
+                                    value={activeProgram.eligibility || '- '}
+                                    onChange={(e) => updateField('eligibility', normalizeEligibilityInput(e.target.value))}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                            const value = activeProgram.eligibility || '';
+                                            if (!value.endsWith('\n')) {
+                                                e.preventDefault();
+                                                updateField('eligibility', `${value}\n- `);
+                                            }
+                                        }
                                     }}
-                                    className="flex-1 py-3 rounded-xl bg-zinc-800 text-zinc-300 font-bold hover:bg-zinc-700 transition-colors"
-                                >
-                                    Cancel
-                                </button>
-                                <button type="submit" className="flex-1 py-3 rounded-xl bg-amber-500 text-black font-bold hover:bg-amber-400 transition-colors">
-                                    Update Program
+                                    className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white resize-none"
+                                />
+                            </div>
+                            <div className="pt-2 flex gap-3">
+                                <button onClick={() => { setIsModalOpen(false); setIsEditModalOpen(false); }} className="flex-1 py-3 rounded-xl bg-zinc-800 text-zinc-300 font-bold hover:bg-zinc-700">Cancel</button>
+                                <button onClick={() => upsertProgram(isModalOpen ? 'create' : 'update')} className="flex-1 py-3 rounded-xl bg-amber-500 text-black font-bold hover:bg-amber-400">
+                                    {isModalOpen ? 'Create Program' : 'Update Program'}
                                 </button>
                             </div>
-                        </form>
+                        </div>
                     </div>
                 </div>
             )}
 
-            {/* Delete Confirmation Dialog */}
-            {deleteConfirmId && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-                    <div className="bg-[#18181b] w-full max-w-md rounded-2xl border border-zinc-800 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
-                        <div className="p-6 border-b border-zinc-800">
-                            <h2 className="text-xl font-black text-white">Delete Program?</h2>
-                            <p className="text-sm text-zinc-400 mt-2">This action cannot be undone. The program will be permanently removed.</p>
+            {isDetailsModalOpen && activeProgram && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+                    <div className="bg-[#18181b] w-full max-w-2xl rounded-2xl border border-zinc-800 shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+                        <div className="p-5 border-b border-zinc-800 flex justify-between items-center bg-zinc-900/50">
+                            <h2 className="text-lg font-black text-white">Program Details</h2>
+                            <button onClick={() => setIsDetailsModalOpen(false)} className="text-zinc-500 hover:text-white"><X size={22} /></button>
                         </div>
-                        <div className="p-6 flex gap-3">
-                            <button
-                                onClick={() => setDeleteConfirmId(null)}
-                                className="flex-1 py-3 rounded-xl bg-zinc-800 text-zinc-300 font-bold hover:bg-zinc-700 transition-colors"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={() => handleDeleteProgram(deleteConfirmId)}
-                                className="flex-1 py-3 rounded-xl bg-red-600 text-white font-bold hover:bg-red-500 transition-colors"
-                            >
-                                Delete
-                            </button>
+                        <div className="p-5 grid grid-cols-2 gap-3 text-sm overflow-y-auto">
+                            <div className="text-zinc-300"><span className="text-zinc-500">Name:</span> {activeProgram.program}</div>
+                            <div className="text-zinc-300"><span className="text-zinc-500">University:</span> {activeProgram.university}</div>
+                            <div className="text-zinc-300"><span className="text-zinc-500">City:</span> {activeProgram.city}</div>
+                            <div className="text-zinc-300"><span className="text-zinc-500">Country:</span> {activeProgram.country}</div>
+                            <div className="text-zinc-300"><span className="text-zinc-500">Degree:</span> {activeProgram.degree_level}</div>
+                            <div className="text-zinc-300"><span className="text-zinc-500">Field:</span> {activeProgram.field_of_study}</div>
+                            <div className="text-zinc-300"><span className="text-zinc-500">Deadline:</span> {formatDate(activeProgram.deadline)}</div>
+                            <div className="text-zinc-300"><span className="text-zinc-500">Tuition:</span> {activeProgram.currency} {Number(activeProgram.tuition_amount ?? 0).toLocaleString()}</div>
+                            <div className="text-zinc-300 col-span-2"><span className="text-zinc-500">Duration:</span> {activeProgram.duration}</div>
+                            <div className="text-zinc-300 col-span-2">
+                                <span className="text-zinc-500">Website:</span>{' '}
+                                {activeProgram.website ? (
+                                    <a
+                                        href={activeProgram.website}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="text-amber-400 hover:text-amber-300 underline break-all"
+                                    >
+                                        {activeProgram.website}
+                                    </a>
+                                ) : '—'}
+                            </div>
+                            <div className="text-zinc-300 col-span-2"><span className="text-zinc-500">Description:</span> {activeProgram.description || '—'}</div>
+                            <div className="text-zinc-300 col-span-2">
+                                <span className="text-zinc-500 block mb-2">Eligibility:</span>
+                                <div className="flex flex-wrap gap-2">
+                                    {normalizeEligibility(activeProgram.eligibility).length > 0 ? (
+                                        normalizeEligibility(activeProgram.eligibility).map((item, idx) => (
+                                            <span key={`${item}-${idx}`} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-zinc-800 border border-zinc-700 text-zinc-200 text-xs">
+                                                <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                                                {item}
+                                            </span>
+                                        ))
+                                    ) : (
+                                        <span className="text-zinc-400">—</span>
+                                    )}
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
             )}
+
+            <ConfirmDialog
+                isOpen={deleteConfirmId != null}
+                onClose={() => setDeleteConfirmId(null)}
+                onConfirm={() => handleDeleteProgram(deleteConfirmId)}
+                title="Delete program?"
+                confirmText="Delete"
+                cancelText="Cancel"
+                message="This action cannot be undone. Are you sure you want to delete this program?"
+            />
         </div>
     );
 };
