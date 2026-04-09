@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { MoreHorizontal, Calendar, ArrowRight, CheckCircle, XCircle, Clock, Bookmark, Plus, Rocket } from 'lucide-react';
+import { CheckCircle, XCircle, Clock, Plus, Target, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import AuthService from '../../services/AuthService';
+import PageHeader from '../../components/PageHeader';
+import ConfirmDialog from '../../components/ConfirmDialog';
 
 const Tracker = () => {
     const navigate = useNavigate();
     const [applications, setApplications] = useState([]);
+    const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, appId: null, isPending: false });
 
     useEffect(() => {
         AuthService.getApplications().then(setApplications).catch(console.error);
@@ -19,36 +22,36 @@ const Tracker = () => {
         'rejected': 'Rejected'
     };
 
-    const getStatusStyles = (status) => {
+    const getStatusHeaderStyles = (status) => {
         switch (status) {
-            case 'pending': return 'border-amber-200 bg-amber-50/50 text-amber-700';
-            case 'accepted': return 'border-emerald-200 bg-emerald-50/50 text-emerald-700 shadow-sm';
-            case 'rejected': return 'border-red-200 bg-red-50/50 text-red-700';
-            default: return 'border-slate-200 bg-slate-50/50 text-slate-500';
+            case 'pending':  return 'bg-white border-2 border-amber-400';
+            case 'accepted': return 'bg-white border-2 border-emerald-400';
+            case 'rejected': return 'bg-white border-2 border-red-400';
+            default:         return 'bg-white border-2 border-slate-300';
         }
     };
 
-    const getStatusHeaderStyles = (status) => {
+    const getStatusAccentStyles = (status) => {
         switch (status) {
-            case 'pending': return 'from-amber-500 to-orange-500 shadow-amber-200';
-            case 'accepted': return 'from-emerald-500 to-teal-500 shadow-emerald-200';
-            case 'rejected': return 'from-red-500 to-pink-500 shadow-red-200';
-            default: return 'from-slate-500 to-slate-600';
+            case 'pending': return 'bg-amber-200 text-amber-900';
+            case 'accepted': return 'bg-emerald-200 text-emerald-900';
+            case 'rejected': return 'bg-red-200 text-red-900';
+            default: return 'bg-slate-200 text-slate-700';
         }
     };
 
     const getStatusIcon = (status) => {
         switch (status) {
-            case 'pending': return <Clock size={16} className="text-white" />;
-            case 'accepted': return <CheckCircle size={16} className="text-white" />;
-            case 'rejected': return <XCircle size={16} className="text-white" />;
+            case 'pending': return <Clock size={16} className="text-amber-700" />;
+            case 'accepted': return <CheckCircle size={16} className="text-emerald-700" />;
+            case 'rejected': return <XCircle size={16} className="text-red-700" />;
             default: return null;
         }
     };
 
-    const moveApplication = async (id, newStatus) => {
+    const moveApplication = async (app, newStatus) => {
         try {
-            await AuthService.updateApplicationStatus(id, newStatus);
+            await AuthService.updateApplicationStatus(app, newStatus);
             const updated = await AuthService.getApplications();
             setApplications(updated);
         } catch (err) {
@@ -56,140 +59,166 @@ const Tracker = () => {
         }
     };
 
-
-    const renderDateInfo = (app, status) => {
-        if (status === 'rejected') return null;
-
-        if (status === 'accepted') {
-            return (
-                <div className="flex items-center gap-2 text-xs text-emerald-700 mb-4 font-bold bg-emerald-100/80 w-fit px-3 py-1.5 rounded-lg border border-emerald-200">
-                    <Calendar size={12} className="text-emerald-600" />
-                    <span>Deadline: <span className="text-emerald-900">{app.deadline}</span></span>
-                </div>
-            );
+    const deleteApplication = async (id) => {
+        try {
+            await AuthService.deleteApplication(id);
+            setApplications(apps => apps.filter(a => a.id !== id));
+        } catch (err) {
+            console.error('Delete failed:', err.message);
         }
-
-        // Pending or default
-        return (
-            <div className="flex items-center gap-2 text-xs text-slate-500 mb-4 font-bold bg-white/60 w-fit px-3 py-1.5 rounded-lg border border-slate-100 backdrop-blur-sm">
-                <Clock size={12} className="text-indigo-500" />
-                <span>Deadline: <span className="text-slate-700">{app.deadline}</span></span>
-            </div>
-        );
     };
 
+    const openConfirmDialog = (appId, isPending) => {
+        setConfirmDialog({ isOpen: true, appId, isPending });
+    };
+
+    const handleConfirmedAction = async () => {
+        const { appId, isPending } = confirmDialog;
+        if (isPending) {
+            await deleteApplication(appId);
+        } else {
+            const app = applications.find(a => a.id === appId);
+            if (app) await moveApplication(app, 'pending');
+        }
+    };
+
+    const formatDate = (dateString) => {
+        if (!dateString) return 'TBA';
+        return new Date(dateString).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+    };
+
+
+
     return (
-        <div className="space-y-8 animate-in fade-in duration-500 pb-8 h-full flex flex-col">
-
-            {/* Hero Section - Image Based */}
-            <div className="relative overflow-hidden rounded-[2.5rem] shadow-2xl group min-h-[300px] flex items-end">
-                {/* Background Image */}
-                <div className="absolute inset-0">
-                    <img
-                        src="https://images.unsplash.com/photo-1484480974693-6ca0a78fb36b?q=80&w=2072&auto=format&fit=crop"
-                        alt="Planning"
-                        className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-105"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-r from-indigo-900/90 via-blue-900/80 to-sky-900/70 mix-blend-multiply"></div>
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
-                </div>
-
-                {/* Content */}
-                <div className="relative z-10 p-10 md:p-14 w-full">
-                    <div className="flex flex-col md:flex-row justify-between items-end gap-8">
-                        <div>
-                            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-sky-100 text-xs font-black uppercase tracking-widest shadow-lg mb-4">
-                                <Rocket size={12} className="text-sky-300" />
-                                My Journey
-                            </div>
-                            <h1 className="text-5xl md:text-6xl font-black text-white tracking-tight leading-none mb-4 drop-shadow-xl">
-                                Application <span className="text-transparent bg-clip-text bg-gradient-to-r from-sky-200 to-white">Tracker</span>
-                            </h1>
-                            <p className="text-sky-100/90 text-lg font-medium max-w-xl leading-relaxed">
-                                Stay organized and never miss a deadline. Track every step of your study abroad journey.
-                            </p>
-                        </div>
-                        <button
-                            onClick={() => navigate('/student/explore')}
-                            className="px-8 py-3.5 bg-white text-indigo-600 rounded-2xl hover:bg-indigo-50 transition-all font-bold shadow-lg shadow-indigo-900/20 hover:shadow-indigo-900/40 hover:-translate-y-1 flex items-center gap-2 whitespace-nowrap"
-                        >
-                            <Plus size={20} />
-                            Add Application
-                        </button>
-                    </div>
-                </div>
-            </div>
+        <div className="max-w-6xl mx-auto space-y-6 pb-12 animate-in fade-in duration-500 h-full flex flex-col">
+            <PageHeader
+                title="Application Tracker"
+                subtitle={`Track your applications easily`}
+                icon={Target}
+                actions={
+                    <button
+                        onClick={() => navigate('/student/explore')}
+                        className="bg-indigo-50/95 hover:bg-white text-indigo-900 font-bold rounded-xl px-6 py-2.5 transition-all shadow-md hover:shadow-lg"
+                    >
+                        Add Application
+                    </button>
+                }
+            />
 
             {/* Kanban Board */}
-            <div className="flex gap-6 overflow-x-auto pb-6 flex-grow items-start snap-x">
-                {statuses.map(status => (
-                    <div key={status} className="flex-1 min-w-[320px] flex flex-col gap-4 snap-center">
-                        {/* Column Header */}
-                        <div className={`p-5 rounded-2xl shadow-lg bg-gradient-to-r ${getStatusHeaderStyles(status)} text-white flex items-center justify-between`}>
-                            <div className="flex items-center gap-2.5 font-black uppercase tracking-wide text-sm">
-                                <div className="p-1.5 bg-white/20 rounded-lg">
-                                    {getStatusIcon(status)}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-start">
+                {statuses.map(status => {
+                    const columnApps = applications.filter(a => a.status === status);
+                    return (
+                        <div
+                            key={status}
+                            className="bg-white/70 backdrop-blur-xl border border-white/70 rounded-3xl shadow-sm p-4 flex flex-col max-h-[68vh]"
+                        >
+                            {/* Column Header */}
+                            <div className={`p-4 rounded-2xl ${getStatusHeaderStyles(status)} flex items-center justify-between mb-4`}>
+                                <div className="flex items-center gap-2.5 font-black uppercase tracking-wide text-sm text-slate-900">
+                                    <div className={`p-1.5 rounded-lg ${getStatusAccentStyles(status)}`}>
+                                        {getStatusIcon(status)}
+                                    </div>
+                                    {statusLabels[status]}
                                 </div>
-                                {statusLabels[status]}
+                                <span className={`px-3 py-1 rounded-lg text-sm font-black ${getStatusAccentStyles(status)}`}>
+                                    {columnApps.length}
+                                </span>
                             </div>
-                            <span className="bg-white/20 px-3 py-1 rounded-lg text-sm font-bold backdrop-blur-sm">
-                                {applications.filter(a => a.status === status).length}
-                            </span>
-                        </div>
 
-                        <div className="space-y-4">
-                            {applications.filter(a => a.status === status).map(app => (
-                                <div key={app.id} className="glass-card p-6 rounded-[1.5rem] group relative hover:border-indigo-300 hover:shadow-xl cursor-grab active:cursor-grabbing transition-all border border-white/60 bg-white/60 backdrop-blur-xl">
-
-                                    <div className="absolute top-4 right-4 text-slate-300 group-hover:text-indigo-400 transition-colors">
-                                        <Bookmark size={20} className="fill-current opacity-20 group-hover:opacity-100" />
-                                    </div>
-
-                                    <div className="mb-4 pr-6">
-                                        <h3 className="font-bold text-slate-800 text-xl leading-tight mb-1 group-hover:text-indigo-700 transition-colors">{app.program}</h3>
-                                        <p className="text-sm text-slate-500 font-bold">{app.university}</p>
-                                    </div>
-
-                                    {renderDateInfo(app, status)}
-
-                                    {/* Action Footer */}
-                                    <div className="pt-4 border-t border-slate-100/50 flex justify-between items-center mt-2">
-                                        <button className="text-slate-400 hover:text-indigo-600 transition p-2 hover:bg-white rounded-full">
-                                            <MoreHorizontal size={18} />
+                            <div className="space-y-3 overflow-y-auto pr-1 flex-1">
+                                {columnApps.map(app => (
+                                    <div
+                                        key={app.id}
+                                        className={`p-4 rounded-2xl group relative transition-all border ${
+                                            status === 'pending'
+                                                ? 'bg-white border-indigo-100 hover:border-indigo-300 hover:shadow-md'
+                                                : status === 'accepted'
+                                                    ? 'bg-emerald-50/70 border-emerald-200'
+                                                    : 'bg-red-50/70 border-red-200'
+                                        }`}
+                                    >
+                                        <button
+                                            onClick={() => openConfirmDialog(app.id, status === 'pending')}
+                                            className="absolute top-3 right-3 z-20 text-slate-400 hover:text-red-500 transition-colors p-1 hover:bg-red-50 rounded-full"
+                                            title={status === 'pending' ? 'Cancel Application' : 'Remove'}
+                                        >
+                                            <X size={15} />
                                         </button>
 
+                                        <div className="pr-7">
+                                            {status === 'pending' ? (
+                                                <h3
+                                                    onClick={() => navigate(`/student/program/${app.program_id}`)}
+                                                    className="font-black text-slate-800 text-base leading-tight mb-1.5 hover:text-indigo-700 cursor-pointer transition-colors"
+                                                >
+                                                    {app.program_name || app.program}
+                                                </h3>
+                                            ) : (
+                                                <h3 className="font-black text-slate-800 text-base leading-tight mb-1.5">
+                                                    {app.program_name || app.program}
+                                                </h3>
+                                            )}
+
+                                            <p className="text-sm text-slate-600 font-bold">
+                                                {app.university || app.country || 'Program application'}
+                                            </p>
+                                        </div>
+
                                         {status === 'pending' && (
-                                            <div className="flex gap-2">
-                                                <button
-                                                    onClick={() => moveApplication(app.id, 'accepted')}
-                                                    className="px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-600 text-xs font-bold hover:bg-emerald-100 flex items-center gap-1 transition-all border border-emerald-100"
-                                                >
-                                                    Accept <CheckCircle size={12} />
-                                                </button>
-                                                <button
-                                                    onClick={() => moveApplication(app.id, 'rejected')}
-                                                    className="px-3 py-1.5 rounded-lg bg-red-50 text-red-600 text-xs font-bold hover:bg-red-100 flex items-center gap-1 transition-all border border-red-100"
-                                                >
-                                                    Reject <XCircle size={12} />
-                                                </button>
+                                            <div className="mt-3 flex items-center justify-between gap-2">
+                                                <div className="flex items-center gap-1.5 text-[11px] font-black text-indigo-700 bg-indigo-50 px-2.5 py-2 rounded-lg border border-indigo-100">
+                                                    <Clock size={13} className="text-indigo-500" />
+                                                    <span>{formatDate(app.deadline)}</span>
+                                                </div>
+
+                                                <div className="flex gap-1.5">
+                                                    <button
+                                                        onClick={() => moveApplication(app, 'accepted')}
+                                                        className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center hover:bg-emerald-100 transition-all border border-emerald-100"
+                                                        title="Accept"
+                                                    >
+                                                        <CheckCircle size={16} strokeWidth={2.5} />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => moveApplication(app, 'rejected')}
+                                                        className="w-8 h-8 rounded-lg bg-red-50 text-red-600 flex items-center justify-center hover:bg-red-100 transition-all border border-red-100"
+                                                        title="Reject"
+                                                    >
+                                                        <XCircle size={16} strokeWidth={2.5} />
+                                                    </button>
+                                                </div>
                                             </div>
                                         )}
                                     </div>
-                                </div>
-                            ))}
+                                ))}
 
-                            {applications.filter(a => a.status === status).length === 0 && (
-                                <div className="text-center py-12 border-2 border-dashed border-indigo-100/50 rounded-[1.5rem] bg-white/20 backdrop-blur-sm text-slate-400 text-sm font-medium flex flex-col items-center gap-3">
-                                    <div className="w-14 h-14 rounded-full bg-indigo-50/50 flex items-center justify-center mb-1">
-                                        <Plus className="text-indigo-300" size={24} />
+                                {columnApps.length === 0 && (
+                                    <div className="text-center py-10 border-2 border-dashed border-slate-200 rounded-2xl bg-white/30 text-slate-400 text-sm font-semibold flex flex-col items-center gap-2">
+                                        <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center">
+                                            <Plus className="text-slate-300" size={22} />
+                                        </div>
+                                        <p>No applications in this stage</p>
                                     </div>
-                                    <p>No applications in this stage</p>
-                                </div>
-                            )}
+                                )}
+                            </div>
                         </div>
-                    </div>
-                ))}
+                    );
+                })}
             </div>
+
+            <ConfirmDialog
+                isOpen={confirmDialog.isOpen}
+                onClose={() => setConfirmDialog({ isOpen: false, appId: null, isPending: false })}
+                onConfirm={handleConfirmedAction}
+                title={confirmDialog.isPending ? 'Cancel Application' : 'Remove Application'}
+                message={confirmDialog.isPending
+                    ? 'Are you sure you want to cancel this application? This action cannot be undone.'
+                    : 'Are you sure you want to remove this application from this stage?'
+                }
+                confirmText={confirmDialog.isPending ? 'Cancel Application' : 'Remove'}
+            />
         </div>
     );
 };

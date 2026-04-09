@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { User, Book, Globe, MapPin, Check, ChevronRight, ChevronLeft, Save } from 'lucide-react';
 import AuthService from '../../services/AuthService';
+import api from '../../services/api';
 
 const steps = [
     { number: 1, title: 'Personal Info', icon: User },
@@ -13,6 +14,7 @@ const steps = [
 const ProfileSetup = () => {
     const navigate = useNavigate();
     const [currentStep, setCurrentStep] = useState(1);
+    const [showPhoneError, setShowPhoneError] = useState(false);
     const [formData, setFormData] = useState({
         fullName: '',
         email: '',
@@ -23,10 +25,14 @@ const ProfileSetup = () => {
         englishTest: 'IELTS',
         englishScore: '',
         targetCountries: [],
+        intakeSeason: 'Fall',
+        intakeYear: '2026',
         intake: 'Fall 2026',
         budget: '',
         careerGoal: ''
     });
+
+    const [availableCountries, setAvailableCountries] = useState([]);
 
     useEffect(() => {
         const currentUser = AuthService.getCurrentUser();
@@ -43,9 +49,16 @@ const ProfileSetup = () => {
         }
     }, [navigate]);
 
+    useEffect(() => {
+        api.get('/programs/filters')
+            .then(data => setAvailableCountries(data?.countries || []))
+            .catch(() => setAvailableCountries([]));
+    }, []);
+
     const handleChange = (e) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
+        if (name === 'phone' && value) setShowPhoneError(false);
     };
 
     const handleCountryToggle = (country) => {
@@ -57,14 +70,19 @@ const ProfileSetup = () => {
         });
     };
 
-    const handleNext = () => {
+    const handleNext = async () => {
+        if (currentStep === 1 && !formData.phone) {
+            setShowPhoneError(true);
+            return;
+        }
+
         if (currentStep < 4) {
             setCurrentStep(prev => prev + 1);
             window.scrollTo(0, 0);
         } else {
             // Finish & Save
             try {
-                AuthService.updateProfile(formData);
+                await AuthService.updateProfile(formData);
                 navigate('/student/dashboard');
             } catch (error) {
                 console.error("Failed to save profile:", error);
@@ -78,101 +96,107 @@ const ProfileSetup = () => {
         }
     };
 
-    const handleSkip = () => {
-        AuthService.updateProfile(formData); // Save what we have
-        navigate('/student/dashboard');
+    const handleSkip = async () => {
+        if (currentStep < 4) {
+            setCurrentStep(prev => prev + 1);
+            window.scrollTo(0, 0);
+        } else {
+            await AuthService.updateProfile(formData);
+            navigate('/student/dashboard');
+        }
     };
 
     const renderStepContent = () => {
         switch (currentStep) {
             case 1:
                 return (
-                    <div className="space-y-6">
-                        <div>
-                            <label className="block text-sm font-bold text-slate-700 mb-2">Full Name</label>
-                            <input
-                                type="text"
-                                name="fullName"
-                                value={formData.fullName}
-                                onChange={handleChange}
-                                className="block w-full px-4 py-3 bg-white border-2 border-indigo-50 rounded-xl focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 text-slate-900 placeholder-slate-400 transition-all font-medium"
-                                placeholder="John Doe"
-                            />
+                    <div className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">Full Name</label>
+                                <input
+                                    type="text"
+                                    name="fullName"
+                                    value={formData.fullName}
+                                    onChange={handleChange}
+                                    className="block w-full px-4 py-2 bg-white border-2 border-indigo-50 rounded-xl focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 text-slate-900 placeholder-slate-400 transition-all font-medium text-sm"
+                                    placeholder="John Doe"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">Mobile Number <span className="text-red-500">*</span></label>
+                                <input
+                                    type="tel"
+                                    name="phone"
+                                    value={formData.phone}
+                                    onChange={handleChange}
+                                    className={`block w-full px-4 py-2 border-2 rounded-xl transition-all font-medium text-sm ${showPhoneError
+                                        ? 'bg-red-50 border-red-200 focus:ring-red-100 focus:border-red-400'
+                                        : 'bg-white border-indigo-50 focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 text-slate-900'
+                                        }`}
+                                    placeholder="+1 (555) 123-4567"
+                                />
+                            </div>
                         </div>
                         <div>
-                            <label className="block text-sm font-bold text-slate-700 mb-2">Email (Read-only)</label>
+                            <label className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">Email Address</label>
                             <input
                                 type="email"
                                 value={formData.email}
                                 disabled
-                                className="block w-full px-4 py-3 bg-slate-100 border-2 border-slate-100 rounded-xl text-slate-500 font-medium cursor-not-allowed"
+                                className="block w-full px-4 py-2 bg-slate-50 border-2 border-slate-50 rounded-xl text-slate-500 font-medium cursor-not-allowed text-sm"
                             />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-bold text-slate-700 mb-2">Phone Number</label>
-                            <input
-                                type="tel"
-                                name="phone"
-                                value={formData.phone}
-                                onChange={handleChange}
-                                readOnly={!!formData.phone}
-                                className={`block w-full px-4 py-3 border-2 rounded-xl transition-all font-medium ${formData.phone
-                                    ? 'bg-slate-100 border-slate-100 text-slate-500 cursor-not-allowed'
-                                    : 'bg-white border-indigo-50 focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 text-slate-900 placeholder-slate-400'
-                                    }`}
-                                placeholder="+1 (555) 123-4567"
-                            />
-                            {formData.phone && <p className="text-xs text-slate-500 mt-2">Phone number imported from signup.</p>}
                         </div>
                     </div>
                 );
             case 2:
                 return (
-                    <div className="space-y-6">
+                    <div className="space-y-4">
                         <div>
-                            <label className="block text-sm font-bold text-slate-700 mb-2">Current/Latest Degree</label>
+                            <label className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">Latest Degree</label>
                             <select
                                 name="degree"
                                 value={formData.degree}
                                 onChange={handleChange}
-                                className="block w-full px-4 py-3 bg-white border-2 border-indigo-50 rounded-xl focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 text-slate-900 transition-all font-medium cursor-pointer"
+                                className="block w-full px-4 py-2 bg-white border-2 border-indigo-50 rounded-xl focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 text-slate-900 transition-all font-medium cursor-pointer text-sm"
                             >
-                                <option>High School</option>
                                 <option>Bachelors</option>
                                 <option>Masters</option>
                                 <option>PhD</option>
                             </select>
                         </div>
-                        <div>
-                            <label className="block text-sm font-bold text-slate-700 mb-2">Field of Study (Major)</label>
-                            <input
-                                type="text"
-                                name="major"
-                                value={formData.major}
-                                onChange={handleChange}
-                                className="block w-full px-4 py-3 bg-white border-2 border-indigo-50 rounded-xl focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 text-slate-900 placeholder-slate-400 transition-all font-medium"
-                                placeholder="Computer Science"
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-bold text-slate-700 mb-2">GPA / Percentage</label>
-                            <input
-                                type="text"
-                                name="gpa"
-                                value={formData.gpa}
-                                onChange={handleChange}
-                                className="block w-full px-4 py-3 bg-white border-2 border-indigo-50 rounded-xl focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 text-slate-900 placeholder-slate-400 transition-all font-medium"
-                                placeholder="3.8 / 4.0 or 85%"
-                            />
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">Field of Study</label>
+                                <input
+                                    type="text"
+                                    name="major"
+                                    value={formData.major}
+                                    onChange={handleChange}
+                                    className="block w-full px-4 py-2 bg-white border-2 border-indigo-50 rounded-xl focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 text-slate-900 placeholder-slate-400 transition-all font-medium text-sm"
+                                    placeholder="Computer Science"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">GPA</label>
+                                <input
+                                    type="text"
+                                    name="gpa"
+                                    value={formData.gpa}
+                                    onChange={handleChange}
+                                    className="block w-full px-4 py-2 bg-white border-2 border-indigo-50 rounded-xl focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 text-slate-900 placeholder-slate-400 transition-all font-medium text-sm"
+                                    placeholder="3.8 / 4.0"
+                                />
+                            </div>
                         </div>
                         <div className="grid grid-cols-2 gap-4">
                             <div>
-                                <label className="block text-sm font-bold text-slate-700 mb-2">English Proficiency</label>
+                                <label className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">English Proficiency</label>
                                 <select
                                     name="englishTest"
                                     value={formData.englishTest}
                                     onChange={handleChange}
-                                    className="block w-full px-4 py-3 bg-white border-2 border-indigo-50 rounded-xl focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 text-slate-900 transition-all font-medium cursor-pointer"
+                                    className="block w-full px-4 py-2 bg-white border-2 border-indigo-50 rounded-xl focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 text-slate-900 transition-all font-medium cursor-pointer text-sm"
                                 >
                                     <option>IELTS</option>
                                     <option>TOEFL</option>
@@ -182,13 +206,17 @@ const ProfileSetup = () => {
                                 </select>
                             </div>
                             <div>
-                                <label className="block text-sm font-bold text-slate-700 mb-2">Score</label>
+                                <label className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">Score</label>
                                 <input
                                     type="text"
                                     name="englishScore"
                                     value={formData.englishScore}
                                     onChange={handleChange}
-                                    className="block w-full px-4 py-3 bg-white border-2 border-indigo-50 rounded-xl focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 text-slate-900 placeholder-slate-400 transition-all font-medium"
+                                    disabled={formData.englishTest === 'None'}
+                                    className={`block w-full px-4 py-2 border-2 rounded-xl transition-all font-medium text-sm ${formData.englishTest === 'None'
+                                        ? 'bg-slate-50 border-slate-100 text-slate-400 cursor-not-allowed'
+                                        : 'bg-white border-indigo-50 focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 text-slate-900'
+                                        }`}
                                     placeholder={formData.englishTest === 'IELTS' ? 'e.g. 7.5' : 'Score'}
                                 />
                             </div>
@@ -199,36 +227,59 @@ const ProfileSetup = () => {
                 return (
                     <div className="space-y-6">
                         <div>
-                            <label className="block text-sm font-bold text-slate-700 mb-3">Target Countries</label>
-                            <div className="grid grid-cols-2 gap-4">
-                                {['USA', 'UK', 'Canada', 'Germany', 'Australia', 'Switzerland'].map(country => (
-                                    <button
-                                        key={country}
-                                        type="button"
-                                        onClick={() => handleCountryToggle(country)}
-                                        className={`p-4 border-2 rounded-xl flex items-center justify-between transition-all duration-300 ${formData.targetCountries.includes(country)
-                                            ? 'border-indigo-600 bg-indigo-600 text-white shadow-lg shadow-indigo-200 scale-105'
-                                            : 'border-indigo-50 bg-white text-slate-500 hover:border-indigo-200 hover:bg-indigo-50'
-                                            }`}
-                                    >
-                                        <span className="font-bold">{country}</span>
-                                        {formData.targetCountries.includes(country) && <Check size={18} className="text-white" />}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-                        <div>
-                            <label className="block text-sm font-bold text-slate-700 mb-2">Preferred Intake</label>
+                            <label className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">Target Country</label>
                             <select
-                                name="intake"
-                                value={formData.intake}
-                                onChange={handleChange}
-                                className="block w-full px-4 py-3 bg-white border-2 border-indigo-50 rounded-xl focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 text-slate-900 transition-all font-medium cursor-pointer"
+                                name="targetCountries"
+                                value={formData.targetCountries[0] || ''}
+                                onChange={(e) => setFormData(prev => ({ ...prev, targetCountries: [e.target.value] }))}
+                                className="block w-full px-4 py-2 bg-white border-2 border-indigo-50 rounded-xl focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 text-slate-900 transition-all font-medium cursor-pointer text-sm"
                             >
-                                <option>Fall 2026</option>
-                                <option>Spring 2027</option>
-                                <option>Fall 2027</option>
+                                <option value="">Select target country</option>
+                                {availableCountries.map(country => (
+                                    <option key={country} value={country}>{country}</option>
+                                ))}
                             </select>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">Preferred Season</label>
+                                <select
+                                    name="intakeSeason"
+                                    value={formData.intakeSeason}
+                                    onChange={(e) => {
+                                        const season = e.target.value;
+                                        setFormData(prev => ({
+                                            ...prev,
+                                            intakeSeason: season,
+                                            intake: `${season} ${prev.intakeYear}`
+                                        }));
+                                    }}
+                                    className="block w-full px-4 py-2 bg-white border-2 border-indigo-50 rounded-xl focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 text-slate-900 transition-all font-medium cursor-pointer text-sm"
+                                >
+                                    <option>Fall</option>
+                                    <option>Spring</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">Preferred Year</label>
+                                <select
+                                    name="intakeYear"
+                                    value={formData.intakeYear}
+                                    onChange={(e) => {
+                                        const year = e.target.value;
+                                        setFormData(prev => ({
+                                            ...prev,
+                                            intakeYear: year,
+                                            intake: `${prev.intakeSeason} ${year}`
+                                        }));
+                                    }}
+                                    className="block w-full px-4 py-2 bg-white border-2 border-indigo-50 rounded-xl focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 text-slate-900 transition-all font-medium cursor-pointer text-sm"
+                                >
+                                    {[new Date().getFullYear(), new Date().getFullYear() + 1, new Date().getFullYear() + 2, new Date().getFullYear() + 3].map(y => (
+                                        <option key={y} value={y}>{y}</option>
+                                    ))}
+                                </select>
+                            </div>
                         </div>
                     </div>
                 );
@@ -236,12 +287,12 @@ const ProfileSetup = () => {
                 return (
                     <div className="space-y-6">
                         <div>
-                            <label className="block text-sm font-bold text-slate-700 mb-2">Estimated Annual Budget</label>
+                            <label className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">Estimated Annual Budget</label>
                             <select
                                 name="budget"
                                 value={formData.budget}
                                 onChange={handleChange}
-                                className="block w-full px-4 py-3 bg-white border-2 border-indigo-50 rounded-xl focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 text-slate-900 transition-all font-medium cursor-pointer"
+                                className="block w-full px-4 py-2 bg-white border-2 border-indigo-50 rounded-xl focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 text-slate-900 transition-all font-medium cursor-pointer text-sm"
                             >
                                 <option value="">Select budget range</option>
                                 <option value="<10k">Less than $10,000</option>
@@ -251,14 +302,14 @@ const ProfileSetup = () => {
                             </select>
                         </div>
                         <div>
-                            <label className="block text-sm font-bold text-slate-700 mb-2">Career Goal</label>
+                            <label className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">Career Goal</label>
                             <textarea
                                 name="careerGoal"
                                 value={formData.careerGoal}
                                 onChange={handleChange}
-                                rows={4}
-                                className="block w-full px-4 py-3 bg-white border-2 border-indigo-50 rounded-xl focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 text-slate-900 placeholder-slate-400 transition-all resize-none font-medium"
-                                placeholder="I want to specialize in AI and work as a Machine Learning Engineer..."
+                                rows={2}
+                                className="block w-full px-4 py-2 bg-white border-2 border-indigo-50 rounded-xl focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 text-slate-900 placeholder-slate-400 transition-all resize-none font-medium text-sm"
+                                placeholder="I want to specialize in AI..."
                             />
                         </div>
                     </div>
@@ -269,7 +320,7 @@ const ProfileSetup = () => {
     };
 
     return (
-        <div className="relative w-full flex justify-center py-10">
+        <div className="relative w-full flex justify-center pt-0 pb-10">
             {/* Full Screen Background Image & Overlay */}
             <div className="fixed inset-0 z-0">
                 <img
@@ -280,19 +331,19 @@ const ProfileSetup = () => {
                 <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-[2px]"></div>
             </div>
 
-            <div className="max-w-3xl w-full mx-auto relative z-10 animate-in fade-in zoom-in duration-500 p-4">
+            <div className="max-w-xl w-full mx-auto relative z-10 animate-in fade-in zoom-in duration-500 p-4">
                 <div className="bg-white/95 backdrop-blur-2xl rounded-3xl overflow-hidden shadow-2xl border border-white/20 relative ring-1 ring-black/5">
 
                     {/* Progress Bar */}
-                    <div className="bg-indigo-50/50 border-b border-indigo-100/50 px-8 py-8 backdrop-blur-sm">
-                        <div className="flex justify-between items-center mb-8">
+                    <div className="bg-indigo-50/50 border-b border-indigo-100/50 px-6 py-4 backdrop-blur-sm">
+                        <div className="flex justify-between items-center mb-4">
                             <div>
-                                <h2 className="text-3xl font-black text-slate-900 tracking-tight">Setup Your Profile</h2>
-                                <p className="text-slate-500 mt-1 font-medium">Let's personalize your experience.</p>
+                                <h2 className="text-xl font-black text-slate-900 tracking-tight">Profile Setup</h2>
+                                <p className="text-slate-500 mt-0.5 text-xs font-medium">Complete these steps to personalize your experience.</p>
                             </div>
-                            <span className="text-sm font-bold text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full border border-indigo-100">Step {currentStep} of 4</span>
+                            <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-100">Stage {currentStep}/4</span>
                         </div>
-                        <div className="relative mx-4">
+                        <div className="relative mx-2">
                             <div className="absolute top-1/2 left-0 w-full h-1 bg-indigo-50 rounded-full -translate-y-1/2 z-0"></div>
                             <div className="relative z-10 flex justify-between">
                                 {steps.map((step) => {
@@ -301,14 +352,11 @@ const ProfileSetup = () => {
                                     const isCompleted = step.number < currentStep;
                                     return (
                                         <div key={step.number} className="flex flex-col items-center group cursor-default">
-                                            <div className={`w-12 h-12 rounded-full flex items-center justify-center transition-all duration-500 border-2 ${isActive ? 'bg-indigo-600 text-white border-indigo-600 shadow-lg shadow-indigo-200 scale-110' :
+                                            <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-all duration-500 border-2 ${isActive ? 'bg-indigo-600 text-white border-indigo-600 shadow-lg shadow-indigo-100 scale-105' :
                                                 isCompleted ? 'bg-emerald-500 text-white border-emerald-500' : 'bg-white text-slate-400 border-indigo-50'
                                                 }`}>
-                                                {isCompleted ? <Check size={20} /> : <Icon size={20} />}
+                                                {isCompleted ? <Check size={14} /> : <Icon size={14} />}
                                             </div>
-                                            <span className={`mt-3 text-xs font-bold uppercase tracking-wider transition-colors ${isActive ? 'text-indigo-600' : 'text-slate-400'} hidden sm:block`}>
-                                                {step.title}
-                                            </span>
                                         </div>
                                     );
                                 })}
@@ -317,35 +365,42 @@ const ProfileSetup = () => {
                     </div>
 
                     {/* Content */}
-                    <div className="p-8 min-h-[400px]">
-                        <div className="animate-in fade-in slide-in-from-right-8 duration-500 key={currentStep}">
+                    <div className="px-6 py-4 min-h-[200px]">
+                        <div
+                            key={currentStep}
+                            className="animate-in fade-in slide-in-from-right-4 duration-300"
+                        >
                             {renderStepContent()}
                         </div>
                     </div>
 
                     {/* Footer */}
-                    <div className="bg-white/50 px-8 py-6 border-t border-indigo-50 flex justify-between items-center backdrop-blur-md">
-                        <button
-                            onClick={handleSkip}
-                            className="text-slate-500 hover:text-indigo-600 font-bold px-4 transition-colors"
-                        >
-                            Skip for now
-                        </button>
-                        <div className="flex gap-4">
+                    <div className="bg-white/50 px-6 py-3 border-t border-indigo-50 flex justify-between items-center backdrop-blur-md">
+                        {currentStep > 1 ? (
+                            <button
+                                onClick={handleSkip}
+                                className="text-slate-500 hover:text-indigo-600 font-bold px-4 transition-colors text-sm"
+                            >
+                                Skip
+                            </button>
+                        ) : (
+                            <div></div>
+                        )}
+                        <div className="flex gap-3">
                             {currentStep > 1 && (
                                 <button
                                     onClick={handleBack}
-                                    className="px-6 py-2.5 border border-indigo-100 rounded-xl text-slate-500 font-bold hover:bg-white hover:text-indigo-600 transition-colors bg-white/50"
+                                    className="px-5 py-2 border border-indigo-100 rounded-xl text-slate-500 font-bold hover:bg-white hover:text-indigo-600 transition-colors bg-white/50 text-sm"
                                 >
                                     Back
                                 </button>
                             )}
                             <button
                                 onClick={handleNext}
-                                className="px-8 py-2.5 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition flex items-center gap-2 shadow-lg shadow-indigo-200 hover:shadow-xl group"
+                                className="px-6 py-2 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition flex items-center gap-2 shadow-lg shadow-indigo-200 hover:shadow-xl group text-sm"
                             >
                                 {currentStep === 4 ? 'Finish Setup' : 'Continue'}
-                                {currentStep === 4 ? <Save size={18} /> : <ChevronRight size={18} className="group-hover:translate-x-1 transition-transform" />}
+                                {currentStep === 4 ? <Save size={16} /> : <ChevronRight size={16} className="group-hover:translate-x-1 transition-transform" />}
                             </button>
                         </div>
                     </div>

@@ -10,20 +10,48 @@ const SESSION_KEY = 'edvoyage_session';
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
+const parseBudgetRange = (budget) => {
+  if (!budget) return { budget_min: null, budget_max: null };
+  if (typeof budget === 'number') return { budget_min: budget, budget_max: budget };
+  if (budget === '<10k') return { budget_min: 0, budget_max: 10000 };
+  if (budget === '10k-20k') return { budget_min: 10000, budget_max: 20000 };
+  if (budget === '20k-40k') return { budget_min: 20000, budget_max: 40000 };
+  if (budget === '40k+') return { budget_min: 40000, budget_max: null };
+  return { budget_min: null, budget_max: null };
+};
+
+const formatBudgetRange = (min, max) => {
+  if (min == null && max == null) return '';
+  if (min === 0 && max === 10000) return '<10k';
+  if (min === 10000 && max === 20000) return '10k-20k';
+  if (min === 20000 && max === 40000) return '20k-40k';
+  if (min === 40000 && max == null) return '40k+';
+  if (min != null && max != null) return `${min}-${max}`;
+  return '';
+};
+
+const toNullableNumber = (value) => {
+  if (value === null || value === undefined) return null;
+  const trimmed = String(value).trim();
+  if (!trimmed) return null;
+  const parsed = Number(trimmed);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
 /** Map DB snake_case user fields → frontend camelCase */
 const normaliseUser = (u) => ({
   id:              u.id,
   email:           u.email,
   fullName:        u.full_name   ?? u.fullName   ?? '',
   phone:           u.phone       ?? '',
-  degree:          u.degree      ?? '',
+  degree:          u.degree_level ?? u.degree ?? '',
   major:           u.major       ?? '',
   gpa:             u.gpa         ?? '',
   englishTest:     u.english_test  ?? u.englishTest  ?? '',
   englishScore:    u.english_score ?? u.englishScore ?? '',
   targetCountries: u.target_countries ?? u.targetCountries ?? [],
-  intake:          u.intake      ?? '',
-  budget:          u.budget      ?? '',
+  intake:          u.intake_term ?? u.intake ?? '',
+  budget:          formatBudgetRange(u.budget_min, u.budget_max) || u.budget || '',
   careerGoal:      u.career_goal ?? u.careerGoal ?? '',
   isAdmin:         u.is_admin    ?? false,
   savedPrograms:      u.savedPrograms      ?? [],
@@ -43,21 +71,26 @@ const updateSession = (user) => {
 
 // ── Auth ───────────────────────────────────────────────────────────────────────
 
-const register = async ({ fullName, phone, email, password }) => {
+const register = async ({ fullName, email, password }) => {
   const data = await api.post('/auth/register', {
     full_name: fullName,
-    phone,
     email,
     password,
   });
   saveSession(data.token, data.user);
-  return data.user;
+  return normaliseUser(data.user);
 };
 
 const login = async (email, password) => {
   const data = await api.post('/auth/login', { email, password });
   saveSession(data.token, data.user);
-  return data.user;
+  return normaliseUser(data.user);
+};
+
+const getUserProfile = async (userId) => {
+  const data = await api.get(`/users/${userId}/profile`);
+  updateSession(data);
+  return normaliseUser(data);
 };
 
 const logout = () => {
@@ -67,7 +100,15 @@ const logout = () => {
 
 const getCurrentUser = () => {
   const raw = localStorage.getItem(SESSION_KEY);
-  return raw ? JSON.parse(raw) : null;
+  if (!raw) return null;
+  const user = JSON.parse(raw);
+  // Guard: if id is missing the session is corrupt — clear it so the user re-logs in
+  if (!user?.id) {
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(SESSION_KEY);
+    return null;
+  }
+  return user;
 };
 
 const getToken = () => localStorage.getItem(TOKEN_KEY);
@@ -80,23 +121,29 @@ const updateProfile = async (formData) => {
   const user = getCurrentUser();
   if (!user) throw new Error('Not authenticated');
 
+  const { budget_min, budget_max } = parseBudgetRange(formData.budget);
   const payload = {
     full_name:        formData.fullName,
     phone:            formData.phone,
-    degree:           formData.degree,
+    degree_level:     formData.degree,
     major:            formData.major,
-    gpa:              formData.gpa,
+    gpa:              toNullableNumber(formData.gpa),
     english_test:     formData.englishTest,
-    english_score:    formData.englishScore,
+    english_score:    toNullableNumber(formData.englishScore),
     target_countries: formData.targetCountries,
-    intake:           formData.intake,
-    budget:           formData.budget,
+    intake_term:      formData.intake,
+    budget_min,
+    budget_max,
+    budget_currency:  'USD',
     career_goal:      formData.careerGoal,
   };
 
-  const updated = await api.put(`/users/${user.id}/profile`, payload);
-  updateSession(updated);
-  return updated;
+  const response = await api.put(`/users/${user.id}/profile`, payload);
+  // Backend returns { message, user: {...} } — extract the user object
+  const updatedUser = response.user ?? response;
+  // Merge with existing session so fields the backend doesn't echo back (like id) are preserved
+  updateSession({ ...user, ...updatedUser, id: user.id });
+  return updatedUser;
 };
 
 // ── Saved Programs ─────────────────────────────────────────────────────────────
@@ -140,7 +187,7 @@ const toggleSavedProgram = async (program) => {
     updateSession(updated);
     return false;
   } else {
-    await api.post(`/users/${user.id}/saved-programs`, { program_id: program.id });
+    await api.post(`/users/${user.id}/saved-programs/${program.id}`);
     const updated = {
       ...user,
       savedPrograms: [...(user.savedPrograms ?? []), { program_id: program.id, ...program }],
@@ -186,7 +233,7 @@ const toggleSavedScholarship = async (scholarship) => {
     updateSession(updated);
     return false;
   } else {
-    await api.post(`/users/${user.id}/saved-scholarships`, { scholarship_id: scholarship.id });
+    await api.post(`/users/${user.id}/saved-scholarships/${scholarship.id}`);
     const updated = {
       ...user,
       savedScholarships: [...(user.savedScholarships ?? []), { scholarship_id: scholarship.id, ...scholarship }],
@@ -210,20 +257,22 @@ const addApplication = async (application) => {
 
   const payload = {
     program_id:   application.programId,
-    university:   application.university,
-    program_name: application.program,
-    country:      application.country,
-    deadline:     application.deadline,
     status:       application.status ?? 'pending',
   };
 
   return api.post(`/users/${user.id}/applications`, payload);
 };
 
-const updateApplicationStatus = async (applicationId, status) => {
+const updateApplicationStatus = async (app, status) => {
   const user = getCurrentUser();
   if (!user) throw new Error('Not authenticated');
-  return api.put(`/users/${user.id}/applications/${applicationId}`, { status });
+  return api.put(`/users/${user.id}/applications/${app.id}`, { status });
+};
+
+const deleteApplication = async (applicationId) => {
+  const user = getCurrentUser();
+  if (!user) throw new Error('Not authenticated');
+  return api.delete(`/users/${user.id}/applications/${applicationId}`);
 };
 
 // ── Export ─────────────────────────────────────────────────────────────────────
@@ -235,6 +284,7 @@ const AuthService = {
   getCurrentUser,
   getToken,
   isAuthenticated,
+  getUserProfile,
   updateProfile,
   // Programs
   getSavedPrograms,
@@ -248,6 +298,7 @@ const AuthService = {
   getApplications,
   addApplication,
   updateApplicationStatus,
+  deleteApplication,
 };
 
 export default AuthService;

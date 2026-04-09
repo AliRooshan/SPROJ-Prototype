@@ -10,7 +10,6 @@ const StudentLayout = () => {
             <div className="fixed inset-0 z-0 pointer-events-none">
                 <div className="absolute top-0 left-0 w-full h-[600px] bg-indigo-50/50 blur-[120px] rounded-full mix-blend-multiply opacity-70"></div>
                 <div className="absolute bottom-0 right-0 w-[500px] h-[500px] bg-purple-50/50 blur-[100px] rounded-full mix-blend-multiply opacity-70"></div>
-                <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20"></div>
             </div>
 
             <div className="relative z-10">

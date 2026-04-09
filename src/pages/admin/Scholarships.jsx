@@ -34,12 +34,13 @@ const ManageScholarships = () => {
         try {
             await api.post('/scholarships', {
                 name: formData.get('title'),
-                amount: `${formData.get('currency')} ${formData.get('amount')}`,
+                amount: Number(formData.get('amount')),
+                currency: formData.get('currency'),
                 country: formData.get('country') || 'Global',
                 deadline: formData.get('deadline'),
                 provider: formData.get('provider') || '',
                 type: 'Merit-based',
-                status: 'Check Requirements'
+                requirements: []
             });
             const fresh = await api.get('/scholarships');
             setLocalScholarships(fresh);
@@ -61,12 +62,13 @@ const ManageScholarships = () => {
         try {
             await api.put(`/scholarships/${editingScholarship.id}`, {
                 name: formData.get('title'),
-                amount: `${formData.get('currency')} ${formData.get('amount')}`,
+                amount: Number(formData.get('amount')),
+                currency: formData.get('currency'),
                 country: formData.get('country') || editingScholarship.country,
                 deadline: formData.get('deadline'),
                 provider: editingScholarship.provider || '',
                 type: editingScholarship.type || 'Merit-based',
-                status: editingScholarship.status || 'Check Requirements'
+                requirements: Array.isArray(editingScholarship.requirements) ? editingScholarship.requirements : []
             });
             const fresh = await api.get('/scholarships');
             setLocalScholarships(fresh);
@@ -114,7 +116,7 @@ const ManageScholarships = () => {
                         <div className="space-y-4 mt-auto pt-6">
                             <div className="flex justify-between items-center text-sm border-b border-zinc-800 pb-3">
                                 <span className="text-zinc-500 font-bold shrink-0">Value</span>
-                                <span className="text-white font-mono font-bold text-right truncate ml-2">{sch.amount}</span>
+                                <span className="text-white font-mono font-bold text-right truncate ml-2">{sch.currency || ''} {Number(sch.amount ?? 0).toLocaleString()}</span>
                             </div>
                             <div className="flex justify-between items-center text-sm">
                                 <span className="text-zinc-500 font-bold">Deadline</span>
@@ -171,9 +173,9 @@ const ManageScholarships = () => {
                                 <div>
                                     <label className="block text-sm font-bold text-zinc-400 mb-1.5">Currency</label>
                                     <select name="currency" className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white focus:outline-none focus:border-amber-500 transition-colors">
-                                        <option value="$">$ USD</option>
-                                        <option value="£">£ GBP</option>
-                                        <option value="€">€ EUR</option>
+                                        <option value="USD">USD</option>
+                                        <option value="GBP">GBP</option>
+                                        <option value="EUR">EUR</option>
                                     </select>
                                 </div>
                             </div>
@@ -217,14 +219,14 @@ const ManageScholarships = () => {
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-sm font-bold text-zinc-400 mb-1.5">Amount</label>
-                                    <input name="amount" required type="number" defaultValue={editingScholarship.amount.replace(/[^0-9]/g, '')} className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white focus:outline-none focus:border-amber-500 transition-colors" />
+                                    <input name="amount" required type="number" defaultValue={Number(editingScholarship.amount ?? 0)} className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white focus:outline-none focus:border-amber-500 transition-colors" />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-bold text-zinc-400 mb-1.5">Currency</label>
-                                    <select name="currency" defaultValue={editingScholarship.amount.charAt(0)} className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white focus:outline-none focus:border-amber-500 transition-colors">
-                                        <option value="$">$ USD</option>
-                                        <option value="£">£ GBP</option>
-                                        <option value="€">€ EUR</option>
+                                    <select name="currency" defaultValue={editingScholarship.currency || 'USD'} className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white focus:outline-none focus:border-amber-500 transition-colors">
+                                        <option value="USD">USD</option>
+                                        <option value="GBP">GBP</option>
+                                        <option value="EUR">EUR</option>
                                     </select>
                                 </div>
                             </div>

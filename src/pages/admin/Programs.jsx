@@ -19,7 +19,9 @@ const ManagePrograms = () => {
                     id: item.id,
                     name: item.program,
                     universityName: item.university,
+                    city: item.city,
                     location: item.country,
+                    website: item.website,
                     uniImage: item.logo || item.image,
                     fees: `${item.currency}${Number(item.tuition).toLocaleString()}`,
                     duration: item.duration || '2 Years'
@@ -54,14 +56,19 @@ const ManagePrograms = () => {
             await api.post('/programs', {
                 program: formData.get('programName'),
                 university: formData.get('university'),
+                city: formData.get('city'),
                 country: formData.get('country'),
                 tuition: Number(formData.get('tuition')),
-                currency: '$',
+                currency: 'USD',
+                website: formData.get('website') || null,
+                eligibility: [],
                 duration: '2 Years'
             });
             const fresh = await api.get('/programs');
             const mapped = fresh.map(item => ({
                 id: item.id, name: item.program, universityName: item.university,
+                city: item.city,
+                website: item.website,
                 location: item.country, uniImage: item.logo || item.image,
                 fees: `${item.currency}${Number(item.tuition).toLocaleString()}`, duration: item.duration || '2 Years'
             }));
@@ -86,14 +93,19 @@ const ManagePrograms = () => {
             await api.put(`/programs/${editingProgram.id}`, {
                 program: formData.get('programName'),
                 university: formData.get('university'),
+                city: formData.get('city'),
                 country: formData.get('country'),
                 tuition: Number(formData.get('tuition')),
-                currency: '$',
+                currency: 'USD',
+                website: formData.get('website') || null,
+                eligibility: [],
                 duration: editingProgram.duration || '2 Years'
             });
             const fresh = await api.get('/programs');
             const mapped = fresh.map(item => ({
                 id: item.id, name: item.program, universityName: item.university,
+                city: item.city,
+                website: item.website,
                 location: item.country, uniImage: item.logo || item.image,
                 fees: `${item.currency}${Number(item.tuition).toLocaleString()}`, duration: item.duration || '2 Years'
             }));
@@ -296,12 +308,22 @@ const ManagePrograms = () => {
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
+                                    <label className="block text-sm font-bold text-zinc-400 mb-1.5">City</label>
+                                    <input name="city" required type="text" className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white focus:outline-none focus:border-amber-500 transition-colors" placeholder="e.g. London" />
+                                </div>
+                                <div>
                                     <label className="block text-sm font-bold text-zinc-400 mb-1.5">Country</label>
                                     <input name="country" required type="text" className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white focus:outline-none focus:border-amber-500 transition-colors" placeholder="e.g. USA" />
                                 </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-sm font-bold text-zinc-400 mb-1.5">Tuition (USD)</label>
                                     <input name="tuition" required type="number" className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white focus:outline-none focus:border-amber-500 transition-colors" placeholder="50000" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-bold text-zinc-400 mb-1.5">Website</label>
+                                    <input name="website" type="url" className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white focus:outline-none focus:border-amber-500 transition-colors" placeholder="https://..." />
                                 </div>
                             </div>
                             <div className="pt-4 flex gap-3">
@@ -349,6 +371,16 @@ const ManagePrograms = () => {
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
+                                    <label className="block text-sm font-bold text-zinc-400 mb-1.5">City</label>
+                                    <input
+                                        name="city"
+                                        required
+                                        type="text"
+                                        defaultValue={editingProgram.city || ''}
+                                        className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white focus:outline-none focus:border-amber-500 transition-colors"
+                                    />
+                                </div>
+                                <div>
                                     <label className="block text-sm font-bold text-zinc-400 mb-1.5">Country</label>
                                     <input
                                         name="country"
@@ -358,6 +390,8 @@ const ManagePrograms = () => {
                                         className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white focus:outline-none focus:border-amber-500 transition-colors"
                                     />
                                 </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-sm font-bold text-zinc-400 mb-1.5">Tuition (USD)</label>
                                     <input
@@ -365,6 +399,15 @@ const ManagePrograms = () => {
                                         required
                                         type="number"
                                         defaultValue={editingProgram.fees.replace(/[^0-9]/g, '')}
+                                        className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white focus:outline-none focus:border-amber-500 transition-colors"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-bold text-zinc-400 mb-1.5">Website</label>
+                                    <input
+                                        name="website"
+                                        type="url"
+                                        defaultValue={editingProgram.website || ''}
                                         className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white focus:outline-none focus:border-amber-500 transition-colors"
                                     />
                                 </div>

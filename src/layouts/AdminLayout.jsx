@@ -10,9 +10,6 @@ const AdminLayout = () => {
         <div className="min-h-screen relative flex selection:bg-amber-500 selection:text-white overflow-hidden bg-[#0f1012] font-sans text-slate-100">
             {/* Global Background - Warmer & Lighter Dark Mode */}
             <div className="fixed inset-0 z-0">
-                {/* Warm Noise */}
-                <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-[0.03] mix-blend-overlay"></div>
-
                 {/* Background Gradient - Zinc/Stone tones (Warmer) */}
                 <div className="absolute inset-0 bg-gradient-to-br from-zinc-900 via-[#131416] to-[#0f1012]"></div>
 

@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Filter, Award, CheckCircle, XCircle, DollarSign, Sparkles, MapPin, ArrowRight, Building2 } from 'lucide-react';
+import { Search, Filter, Award, MapPin, Building2, Calendar, DollarSign, Bookmark, ChevronDown, Check, ArrowUpDown, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import PageHeader from '../../components/PageHeader';
+import AuthService from '../../services/AuthService';
 import api from '../../services/api';
 
 
@@ -8,171 +10,299 @@ const Scholarships = () => {
     const navigate = useNavigate();
     const [scholarships, setScholarships] = useState([]);
     const [searchTerm, setSearchTerm] = useState('');
-    const [filterType, setFilterType] = useState('All');
+    const [selectedCountries, setSelectedCountries] = useState([]);
+    const [selectedTypes, setSelectedTypes] = useState([]);
+    const [sortBy, setSortBy] = useState('id');
+    const [showFilters, setShowFilters] = useState(false);
+    const [activeDropdown, setActiveDropdown] = useState(null);
+    const [filterOptions, setFilterOptions] = useState({ countries: [], types: [] });
+    const [savedIds, setSavedIds] = useState(new Set());
+    const user = AuthService.getCurrentUser();
+
+    const getScholarshipPrice = (scholarship) => Number(
+        scholarship.standard_amount ?? scholarship.amount ?? 0
+    );
+    const toTitleCase = (value = '') =>
+        String(value).charAt(0).toUpperCase() + String(value).slice(1).toLowerCase();
 
     useEffect(() => {
+        api.get('/scholarships/filters')
+            .then(data => setFilterOptions({
+                countries: data.countries || [],
+                types: data.types || []
+            }))
+            .catch(err => console.error('Failed to load scholarship filters:', err));
+
         api.get('/scholarships')
-            .then(data => setScholarships(data))
+            .then(data => {
+                setScholarships(data);
+                if (user) {
+                    const saved = new Set(data.filter(s => AuthService.isScholarshipSaved(s.id)).map(s => s.id));
+                    setSavedIds(saved);
+                }
+            })
             .catch(err => console.error('Failed to load scholarships:', err));
     }, []);
 
-    // Get unique types for filter
-    const types = ['All', ...new Set(scholarships.map(s => s.type))];
+    const handleToggleSave = async (e, scholarship) => {
+        e.stopPropagation();
+        if (!user) return;
+        try {
+            const newState = await AuthService.toggleSavedScholarship(scholarship);
+            setSavedIds(prev => {
+                const next = new Set(prev);
+                newState ? next.add(scholarship.id) : next.delete(scholarship.id);
+                return next;
+            });
+        } catch (err) {
+            console.error('Save failed:', err.message);
+        }
+    };
+
+    // Get unique types and countries for filter
+    const types = ['All', ...filterOptions.types.map(t => toTitleCase(t))];
+    const countries = ['All', ...filterOptions.countries];
 
     const filtered = scholarships.filter(s => {
         const matchesSearch = s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
             (s.provider && s.provider.toLowerCase().includes(searchTerm.toLowerCase())) ||
-            s.country.toLowerCase().includes(searchTerm.toLowerCase());
-        const matchesFilter = filterType === 'All' || s.type === filterType;
-        return matchesSearch && matchesFilter;
+            (s.country || '').toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesType = selectedTypes.length === 0 ||
+            selectedTypes.some(t => t.toLowerCase() === String(s.type || '').toLowerCase());
+        const matchesCountry = selectedCountries.length === 0 || selectedCountries.includes(s.country);
+        return matchesSearch && matchesType && matchesCountry;
+    }).sort((a, b) => {
+        let amountA = getScholarshipPrice(a);
+        let amountB = getScholarshipPrice(b);
+        if (sortBy === 'amount_high') return amountB - amountA;
+        if (sortBy === 'amount_low') return amountA - amountB;
+        return a.id - b.id;
     });
 
-
-    const checkEligibility = (status) => {
-        return status === 'Eligible';
-    };
+    const activeFilterCount = selectedCountries.length + selectedTypes.length;
 
     return (
-        <div className="space-y-8 animate-in fade-in duration-500 pb-12">
-
-            {/* Hero Section */}
-            <div className="relative overflow-hidden rounded-[2.5rem] shadow-2xl group min-h-[300px] flex items-end">
-                <div className="absolute inset-0">
-                    <img
-                        src="https://images.unsplash.com/photo-1523240795612-9a054b0db644?q=80&w=2070&auto=format&fit=crop"
-                        alt="Graduation Success"
-                        className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-105"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-r from-emerald-900/90 via-teal-900/80 to-blue-900/70 mix-blend-multiply"></div>
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
-                </div>
-
-                <div className="relative z-10 p-10 md:p-14 w-full">
-                    <div className="flex flex-col md:flex-row justify-between items-end gap-8">
-                        <div>
-                            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-emerald-100 text-xs font-black uppercase tracking-widest shadow-lg mb-4">
-                                <DollarSign size={12} className="text-emerald-300" />
-                                Financial Support
+        <div className="max-w-6xl mx-auto space-y-6 pb-12 animate-in fade-in duration-500">
+            <PageHeader
+                title="Scholarships"
+                subtitle="Discover funding opportunities tailored for your profile"
+                icon={Award}
+                actions={
+                    <div className="flex items-center gap-3">
+                        {/* Compact Search Bar */}
+                        <div className="relative w-52 sm:w-64 group">
+                            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                                <Search className="text-indigo-500 group-focus-within:text-indigo-600 transition-colors" size={16} />
                             </div>
-                            <h1 className="text-5xl md:text-6xl font-black text-white tracking-tight leading-none mb-4 drop-shadow-xl">
-                                Find <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-200 to-white">Scholarships</span>
-                            </h1>
-                            <p className="text-emerald-100/90 text-lg font-medium max-w-xl leading-relaxed">
-                                Don't let cost hold you back. Discover funding opportunities tailored for your academic profile.
-                            </p>
+                            <input
+                                type="text"
+                                placeholder="Search..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="block w-full pl-10 pr-4 py-2.5 bg-indigo-50/95 hover:bg-white focus:bg-white text-indigo-950 placeholder-indigo-600 rounded-xl outline-none transition-all text-sm font-bold shadow-md focus:shadow-lg"
+                            />
                         </div>
-                    </div>
-                </div>
-            </div>
 
-            {/* Filters */}
-            <div className="bg-white/70 glass-card p-6 rounded-[2rem] flex flex-col md:flex-row gap-5 items-center backdrop-blur-2xl border border-white/50 shadow-xl sticky top-4 z-40">
-                <div className="relative flex-grow w-full group">
-                    <Search className="absolute left-4 top-3.5 text-slate-400 group-focus-within:text-emerald-600 transition-colors" size={20} />
-                    <input
-                        type="text"
-                        placeholder="Search by name, provider, or country..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="block w-full pl-12 pr-4 py-3.5 bg-white/80 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-slate-900 placeholder-slate-400 transition-all font-medium border-2 border-emerald-50/50 outline-none hover:border-emerald-100 shadow-sm"
-                    />
-                </div>
-
-                <div className="relative min-w-[200px] w-full md:w-auto">
-                    <div className="absolute left-4 top-3.5 pointer-events-none text-emerald-600">
-                        <Filter size={18} />
+                        {/* Compact Filter Button */}
+                        <button
+                            onClick={() => setShowFilters(!showFilters)}
+                            className={`p-2.5 rounded-xl transition-all relative flex items-center justify-center shadow-md hover:shadow-lg ${showFilters ? 'bg-white text-indigo-700' : 'bg-indigo-50/95 text-indigo-900 hover:bg-white'}`}
+                            title="Filters"
+                        >
+                            <Filter size={18} />
+                            {activeFilterCount > 0 && (
+                                <span className="absolute -top-1.5 -right-1.5 bg-pink-500 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center shadow-md">
+                                    {activeFilterCount}
+                                </span>
+                            )}
+                        </button>
                     </div>
-                    <select
-                        value={filterType}
-                        onChange={(e) => setFilterType(e.target.value)}
-                        className="block w-full pl-12 pr-10 py-3.5 bg-white border-2 border-emerald-100 rounded-xl appearance-none text-emerald-900 font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer hover:bg-emerald-50 transition-colors shadow-sm"
-                    >
-                        {types.map(t => <option key={t} value={t}>{t}</option>)}
-                    </select>
+                }
+            />
+
+            {/* Filters Panel */}
+            {showFilters && (
+                <div className="flex flex-wrap items-center gap-3 relative z-40 animate-in slide-in-from-top-2 duration-200">
+                    {/* Transparent overlay for dismiss */}
+                    {activeDropdown && (
+                        <div className="fixed inset-0 z-30" onClick={() => setActiveDropdown(null)} />
+                    )}
+
+                    {/* Country Pill */}
+                    <div className="relative z-40">
+                        <button
+                            onClick={() => setActiveDropdown(activeDropdown === 'country' ? null : 'country')}
+                            className={`flex items-center gap-2 px-4 h-[40px] rounded-full text-sm font-bold transition-all border outline-none ${selectedCountries.length > 0 || activeDropdown === 'country' ? 'bg-purple-100 border-purple-200 text-purple-700 shadow-sm' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300'}`}
+                        >
+                            <MapPin size={14} />
+                            Country {selectedCountries.length > 0 && `(${selectedCountries.length})`}
+                            <ChevronDown size={14} className={`transition-transform opacity-70 ml-0.5 ${activeDropdown === 'country' ? 'rotate-180' : ''}`} />
+                        </button>
+                        
+                        {activeDropdown === 'country' && (
+                            <div className="absolute top-full left-0 mt-2 w-56 bg-white flex flex-col rounded-2xl shadow-xl shadow-slate-200 border border-slate-100 p-2 max-h-64 overflow-y-auto animate-in fade-in zoom-in-95 duration-150">
+                                {countries.filter(c => c !== 'All').map(c => (
+                                    <label key={c} onClick={(e) => {
+                                        e.preventDefault();
+                                        if (selectedCountries.includes(c)) setSelectedCountries(selectedCountries.filter(x => x !== c));
+                                        else setSelectedCountries([...selectedCountries, c]);
+                                    }} className="flex items-center gap-3 px-3 py-2.5 hover:bg-slate-50 rounded-xl cursor-pointer group transition-colors select-none">
+                                        <div className={`w-4 h-4 rounded-[4px] border flex items-center justify-center transition-colors shrink-0 ${selectedCountries.includes(c) ? 'bg-purple-600 border-purple-600 text-white' : 'border-slate-300 group-hover:border-purple-400'}`}>
+                                            {selectedCountries.includes(c) && <Check size={12} strokeWidth={3} />}
+                                        </div>
+                                        <span className="text-sm font-semibold text-slate-700 leading-none">{c}</span>
+                                    </label>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Type Pill */}
+                    <div className="relative z-40">
+                        <button
+                            onClick={() => setActiveDropdown(activeDropdown === 'type' ? null : 'type')}
+                            className={`flex items-center gap-2 px-4 h-[40px] rounded-full text-sm font-bold transition-all border outline-none ${selectedTypes.length > 0 || activeDropdown === 'type' ? 'bg-purple-100 border-purple-200 text-purple-700 shadow-sm' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300'}`}
+                        >
+                            <Award size={14} />
+                            Type {selectedTypes.length > 0 && `(${selectedTypes.length})`}
+                            <ChevronDown size={14} className={`transition-transform opacity-70 ml-0.5 ${activeDropdown === 'type' ? 'rotate-180' : ''}`} />
+                        </button>
+                        
+                        {activeDropdown === 'type' && (
+                            <div className="absolute top-full left-0 mt-2 w-56 bg-white flex flex-col rounded-2xl shadow-xl shadow-slate-200 border border-slate-100 p-2 max-h-64 overflow-y-auto animate-in fade-in zoom-in-95 duration-150">
+                                {types.filter(c => c !== 'All').map(t => (
+                                    <label key={t} onClick={(e) => {
+                                        e.preventDefault();
+                                        if (selectedTypes.includes(t)) setSelectedTypes(selectedTypes.filter(x => x !== t));
+                                        else setSelectedTypes([...selectedTypes, t]);
+                                    }} className="flex items-center gap-3 px-3 py-2.5 hover:bg-slate-50 rounded-xl cursor-pointer group transition-colors select-none">
+                                        <div className={`w-4 h-4 rounded-[4px] border flex items-center justify-center transition-colors shrink-0 ${selectedTypes.includes(t) ? 'bg-purple-600 border-purple-600 text-white' : 'border-slate-300 group-hover:border-purple-400'}`}>
+                                            {selectedTypes.includes(t) && <Check size={12} strokeWidth={3} />}
+                                        </div>
+                                        <span className="text-sm font-semibold text-slate-700 leading-none">{t}</span>
+                                    </label>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Sort Pill */}
+                    <div className="relative z-40">
+                        <button
+                            onClick={() => setActiveDropdown(activeDropdown === 'sort' ? null : 'sort')}
+                            className={`flex items-center gap-2 px-4 h-[40px] rounded-full text-sm font-bold transition-all border outline-none ${sortBy !== 'id' || activeDropdown === 'sort' ? 'bg-purple-100 border-purple-200 text-purple-700 shadow-sm' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300'}`}
+                        >
+                            <ArrowUpDown size={14} />
+                            Sort: {sortBy === 'amount_high' ? 'Amount: High to Low' : sortBy === 'amount_low' ? 'Amount: Low to High' : 'Default'}
+                            <ChevronDown size={14} className={`transition-transform opacity-70 ml-0.5 ${activeDropdown === 'sort' ? 'rotate-180' : ''}`} />
+                        </button>
+                        
+                        {activeDropdown === 'sort' && (
+                            <div className="absolute top-full left-0 mt-2 w-56 bg-white flex flex-col rounded-2xl shadow-xl shadow-slate-200 border border-slate-100 p-2 animate-in fade-in zoom-in-95 duration-150">
+                                {[
+                                    { id: 'id', label: 'Default' },
+                                    { id: 'amount_high', label: 'Amount: High to Low' },
+                                    { id: 'amount_low', label: 'Amount: Low to High' }
+                                ].map(option => (
+                                    <label key={option.id} onClick={() => setSortBy(option.id)} className="flex items-center justify-between px-3 py-2.5 hover:bg-slate-50 rounded-xl cursor-pointer group transition-colors select-none">
+                                        <span className={`text-sm font-semibold leading-none ${sortBy === option.id ? 'text-purple-700' : 'text-slate-700'}`}>{option.label}</span>
+                                        <div className={`w-4 h-4 rounded-full border-[1.5px] flex items-center justify-center shrink-0 ${sortBy === option.id ? 'border-purple-600' : 'border-slate-300 group-hover:border-purple-400'}`}>
+                                            {sortBy === option.id && <div className="w-2 h-2 rounded-full bg-purple-600" />}
+                                        </div>
+                                    </label>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                    
+                    {/* Clear Filters (if any) */}
+                    {activeFilterCount > 0 && (
+                        <button
+                            onClick={() => {
+                                setSelectedCountries([]);
+                                setSelectedTypes([]);
+                                setSortBy('id');
+                                setActiveDropdown(null);
+                            }}
+                            className="ml-auto flex items-center gap-2 px-4 h-[40px] rounded-full text-sm font-bold text-red-500 hover:text-red-700 hover:bg-red-50 transition-colors"
+                            title="Clear Filters"
+                        >
+                            <X size={14} strokeWidth={3} />
+                            Reset
+                        </button>
+                    )}
                 </div>
-            </div>
+            )}
 
             {/* List */}
-            <div className="grid gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {filtered.length > 0 ? (
                     filtered.map(item => {
-                        const isEligible = checkEligibility(item.status);
                         return (
-                            <div key={item.id} className="relative group overflow-hidden bg-gradient-to-br from-emerald-50 via-white to-teal-50 backdrop-blur-xl p-0 rounded-[2.5rem] border border-white/60 shadow-lg hover:shadow-2xl hover:shadow-emerald-100/50 transition-all duration-300 flex flex-col md:flex-row hover:-translate-y-1">
-
-                                {/* Left Accent / Image Strip */}
-                                <div className="md:w-32 bg-gradient-to-br from-emerald-600 to-teal-700 relative overflow-hidden flex items-center justify-center p-6 group-hover:w-40 transition-all duration-500">
-                                    <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-soft-light"></div>
-                                    <Award size={48} className="text-white drop-shadow-md group-hover:scale-110 transition-transform duration-500" />
+                            <div key={item.id} className="bg-white/80 backdrop-blur-xl rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all hover:-translate-y-1 p-4 space-y-3 group flex flex-col">
+                                {/* Header: Provider & Save */}
+                                <div className="flex justify-between items-start gap-4">
+                                    <div className="flex items-center gap-2 text-slate-500 font-bold text-sm">
+                                        <Building2 size={16} className="text-indigo-500" />
+                                        <span className="line-clamp-1">{item.provider}</span>
+                                    </div>
+                                    {user && (
+                                        <button
+                                            onClick={(e) => handleToggleSave(e, item)}
+                                            className={`p-2 rounded-xl transition-all shrink-0 ${savedIds.has(item.id) ? 'bg-indigo-50 text-indigo-600' : 'text-slate-400 hover:bg-slate-50 hover:text-indigo-600'}`}
+                                        >
+                                            <Bookmark size={18} fill={savedIds.has(item.id) ? 'currentColor' : 'none'} />
+                                        </button>
+                                    )}
                                 </div>
 
-                                {/* Content */}
-                                <div className="flex-grow p-8 flex flex-col md:flex-row gap-8 justify-between items-center bg-transparent">
-                                    <div className="space-y-4 flex-grow w-full">
-                                        <div className="flex flex-wrap items-center gap-4">
-                                            <h3 className="text-2xl font-black text-slate-900 group-hover:text-emerald-700 transition-colors leading-tight">{item.name}</h3>
-                                            <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider border shadow-sm ${isEligible
-                                                ? 'bg-emerald-100/50 text-emerald-700 border-emerald-200'
-                                                : item.status === 'Check Requirements'
-                                                    ? 'bg-amber-100/50 text-amber-700 border-amber-200'
-                                                    : 'bg-slate-100/50 text-slate-500 border-slate-200'
-                                                }`}>
-                                                {isEligible ? <CheckCircle size={12} strokeWidth={3} /> : item.status === 'Check Requirements' ? <Sparkles size={12} /> : <XCircle size={12} strokeWidth={3} />}
-                                                {item.status}
-                                            </span>
-                                        </div>
+                                {/* Title (Clickable) */}
+                                <div className="flex-grow">
+                                    <h3
+                                        onClick={() => navigate(`/student/scholarships/${item.id}`)}
+                                        className="text-lg font-black text-slate-900 leading-tight cursor-pointer hover:text-indigo-600 transition-colors line-clamp-2"
+                                    >
+                                        {item.name}
+                                    </h3>
+                                </div>
 
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            <div className="flex items-center gap-3">
-                                                <div className="p-2 bg-slate-50 rounded-xl text-slate-400 group-hover:text-emerald-500 group-hover:bg-emerald-50 transition-colors">
-                                                    <Building2 size={18} />
-                                                </div>
-                                                <div>
-                                                    <p className="text-xs font-bold text-slate-400 uppercase">Provider</p>
-                                                    <p className="font-bold text-slate-700">{item.provider}</p>
-                                                </div>
-                                            </div>
-                                            <div className="flex items-center gap-3">
-                                                <div className="p-2 bg-slate-50 rounded-xl text-slate-400 group-hover:text-blue-500 group-hover:bg-blue-50 transition-colors">
-                                                    <MapPin size={18} />
-                                                </div>
-                                                <div>
-                                                    <p className="text-xs font-bold text-slate-400 uppercase">Location</p>
-                                                    <p className="font-bold text-slate-700">{item.country}</p>
-                                                </div>
-                                            </div>
-                                        </div>
+                                {/* Meta Info */}
+                                <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-50">
+                                    <div className="flex items-center gap-2 text-sm font-semibold text-slate-600">
+                                        <MapPin size={16} className="text-slate-400" />
+                                        <span className="truncate">{item.country}</span>
                                     </div>
-
-                                    {/* Right Side: Amount & CTA */}
-                                    <div className="flex flex-col items-center md:items-end gap-5 min-w-[200px] w-full md:w-auto border-t md:border-t-0 md:border-l border-emerald-100/50 pt-6 md:pt-0 md:pl-8">
-                                        <div className="text-center md:text-right">
-                                            <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">Value</p>
-                                            <span className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-emerald-600 to-teal-600 block">{item.amount}</span>
-                                        </div>
-
-                                        <button
-                                            onClick={() => navigate(`/student/scholarships/${item.id}`)}
-                                            className="w-full px-6 py-3 bg-slate-900 text-white font-bold rounded-xl hover:bg-emerald-600 transition-all shadow-lg hover:shadow-emerald-200 hover:-translate-y-0.5 group/btn flex items-center justify-center gap-2"
-                                        >
-                                            View Details
-                                            <ArrowRight size={18} className="group-hover/btn:translate-x-1 transition-transform" />
-                                        </button>
-                                        <p className="text-xs font-bold text-slate-400 bg-emerald-50/50 px-3 py-1.5 rounded-lg border border-emerald-100/50 uppercase tracking-wide w-full text-center">
-                                            Deadline: <span className="text-slate-700 ml-1">{item.deadline}</span>
-                                        </p>
+                                    <div className="flex items-center gap-2 text-sm font-semibold text-slate-600">
+                                        <Award size={16} className="text-slate-400" />
+                                        <span className="truncate">{toTitleCase(item.type)}</span>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-sm font-semibold text-slate-600">
+                                        <DollarSign size={16} className="text-slate-400" />
+                                        <span className="truncate">{item.currency || ''} {Number(item.amount ?? 0).toLocaleString()}</span>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-sm font-semibold text-slate-600">
+                                        <Calendar size={16} className="text-slate-400" />
+                                        <span className="truncate">{item.deadline}</span>
                                     </div>
                                 </div>
                             </div>
                         );
                     })
                 ) : (
-                    <div className="text-center py-20 bg-white/40 rounded-[2rem] border-2 border-dashed border-emerald-100">
-                        <div className="inline-flex p-4 rounded-full bg-emerald-50 mb-4 text-emerald-300">
-                            <Search size={32} />
+                    <div className="col-span-full py-20 px-6 bg-white/60 glass-card rounded-[2rem] border-dashed border-indigo-300 flex flex-col items-center justify-center text-center backdrop-blur-sm">
+                        <div className="w-20 h-20 bg-indigo-50 rounded-full flex items-center justify-center mb-6 shadow-inner">
+                            <Search className="text-indigo-400" size={32} />
                         </div>
-                        <h3 className="text-xl font-bold text-slate-700">No scholarships found</h3>
-                        <p className="text-slate-500">Try adjusting your filters or search terms.</p>
+                        <h3 className="text-2xl font-black text-slate-800 mb-2">No scholarships found</h3>
+                        <p className="text-slate-600 max-w-md mx-auto mb-8 font-medium">
+                            We couldn't find any scholarships matching your search criteria. Try adjusting your filters or search terms.
+                        </p>
+                        <button
+                            onClick={() => { setSearchTerm(''); setSelectedCountries([]); setSelectedTypes([]); }}
+                            className="px-8 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-all shadow-lg hover:shadow-indigo-200 hover:-translate-y-1"
+                        >
+                            Clear all filters
+                        </button>
                     </div>
                 )}
             </div>

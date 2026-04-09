@@ -6,26 +6,40 @@ const ManageCosts = () => {
     const [cities, setCities] = useState([]);
     const [isModalOpen, setIsModalOpen] = useState(false);
 
-    useEffect(() => {
+    const loadCosts = () => {
         api.get('/costs')
             .then(data => setCities(data))
             .catch(console.error);
+    };
+
+    useEffect(() => {
+        loadCosts();
     }, []);
 
     const handleAddExchangeRate = async (e) => {
         e.preventDefault();
         const formData = new FormData(e.target);
         try {
-            await api.post('/costs', {
-                city: formData.get('city'),
-                country: formData.get('country'),
+            const cityName = formData.get('city');
+            const countryName = formData.get('country');
+            const existing = cities.find(
+                c => (c.city || '').toLowerCase() === String(cityName).toLowerCase()
+                  && (c.country || '').toLowerCase() === String(countryName).toLowerCase()
+            );
+            if (!existing) {
+                alert('City/country does not exist in reference data. Please seed it in backend first.');
+                return;
+            }
+
+            await api.put(`/costs/${existing.id}`, {
+                city: cityName,
+                country: countryName,
                 currency: formData.get('currency'),
-                rent: parseInt(formData.get('rent')),
-                food: parseInt(formData.get('food')),
-                transport: parseInt(formData.get('transport'))
+                rent: parseInt(formData.get('rent'), 10),
+                food: parseInt(formData.get('food'), 10),
+                transport: parseInt(formData.get('transport'), 10)
             });
-            const fresh = await api.get('/costs');
-            setCities(fresh);
+            loadCosts();
             setIsModalOpen(false);
         } catch (err) {
             console.error('Failed to add city:', err.message);
@@ -39,8 +53,7 @@ const ManageCosts = () => {
                 city: city.city, country: city.country, currency: city.currency,
                 rent: Number(rent), food: Number(food), transport: Number(transport)
             });
-            const fresh = await api.get('/costs');
-            setCities(fresh);
+            loadCosts();
         } catch (err) {
             console.error('Failed to save city:', err.message);
             alert('Failed to save: ' + err.message);
@@ -63,7 +76,7 @@ const ManageCosts = () => {
                         <span>Add Exchange Rate</span>
                     </button>
                     <button
-                        onClick={() => alert('Exchange rates synced successfully!')}
+                        onClick={loadCosts}
                         className="flex items-center gap-2 px-5 py-3 bg-zinc-800 hover:bg-zinc-700 text-white font-bold rounded-xl border border-zinc-700 shadow-sm transition-all active:scale-95"
                     >
                         <RefreshCw size={18} />

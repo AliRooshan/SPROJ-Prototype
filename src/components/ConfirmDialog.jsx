@@ -19,10 +19,10 @@ const ConfirmDialog = ({ isOpen, onClose, onConfirm, title, message, confirmText
                         </div>
                     </div>
 
-                    <div className="flex gap-3 pt-2">
+                    <div className="flex gap-2 pt-2">
                         <button
                             onClick={onClose}
-                            className="flex-1 px-4 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold transition-colors"
+                            className="flex-1 px-3 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm transition-colors"
                         >
                             {cancelText}
                         </button>
@@ -31,7 +31,7 @@ const ConfirmDialog = ({ isOpen, onClose, onConfirm, title, message, confirmText
                                 onConfirm();
                                 onClose();
                             }}
-                            className="flex-1 px-4 py-3 rounded-xl bg-red-500 hover:bg-red-600 text-white font-bold transition-colors shadow-lg shadow-red-500/30"
+                            className="flex-1 px-3 py-2 rounded-lg bg-red-500 hover:bg-red-600 text-white font-bold text-sm transition-colors shadow-md shadow-red-500/30"
                         >
                             {confirmText}
                         </button>

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, BookOpen, GraduationCap, DollarSign, Settings, LogOut, ShieldCheck } from 'lucide-react';
 import ConfirmDialog from './ConfirmDialog';
+import AuthService from '../services/AuthService';
 
 const AdminSidebar = ({ isOpen, onClose }) => {
     const navigate = useNavigate();
@@ -12,6 +13,7 @@ const AdminSidebar = ({ isOpen, onClose }) => {
     };
 
     const confirmLogout = () => {
+        AuthService.logout();
         navigate('/login');
     };
 

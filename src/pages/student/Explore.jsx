@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Filter, MapPin, SlidersHorizontal, ArrowUpDown, X, Globe, Clock, Sparkles } from 'lucide-react';
+import { Search, Filter, MapPin, SlidersHorizontal, ArrowUpDown, X, Clock, DollarSign, Compass, ChevronDown, Check } from 'lucide-react';
 import ProgramCard from '../../components/ProgramCard';
+import PageHeader from '../../components/PageHeader';
 import AuthService from '../../services/AuthService';
 import api from '../../services/api';
 
@@ -8,22 +9,53 @@ const Explore = ({ isGuest = false }) => {
     const [programs, setPrograms] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
-    const [selectedCountry, setSelectedCountry] = useState('All');
-    const [selectedDegree, setSelectedDegree] = useState('All');
+    const [filterOptions, setFilterOptions] = useState({ countries: [], durations: [], degrees: [] });
+    const [selectedCountries, setSelectedCountries] = useState([]);
+    const [selectedDegrees, setSelectedDegrees] = useState([]);
     const [selectedDuration, setSelectedDuration] = useState('All');
-    const [budgetRange, setBudgetRange] = useState([0, 50000]);
+    const [budgetRange, setBudgetRange] = useState([0, 0]);
     const [showFilters, setShowFilters] = useState(false);
+    const [activeDropdown, setActiveDropdown] = useState(null);
     const [sortBy, setSortBy] = useState('id');
     const [savedProgramIds, setSavedProgramIds] = useState([]);
 
+    const getProgramPrice = (program) => Number(
+        program.standard_tuition ?? program.tuition ?? program.tuition_amount ?? 0
+    );
+
     useEffect(() => {
+        api.get('/programs/filters')
+            .then(data => setFilterOptions({
+                countries: data.countries || [],
+                durations: data.durations || [],
+                degrees: data.degrees || []
+            }))
+            .catch(err => console.error('Failed to load filters:', err));
+
         api.get('/programs')
-            .then(data => { setPrograms(data); setLoading(false); })
+            .then(data => {
+                setPrograms(data);
+                const maxTuition = Math.max(
+                    0,
+                    ...data.map(p => getProgramPrice(p)).filter(Number.isFinite)
+                );
+                setBudgetRange([0, maxTuition]);
+                setLoading(false);
+            })
             .catch(() => setLoading(false));
 
-        const currentUser = AuthService.getCurrentUser();
-        if (currentUser) {
-            setSavedProgramIds((currentUser.savedPrograms ?? []).map(p => p.program_id ?? p.id));
+        if (!isGuest) {
+            AuthService.getSavedPrograms()
+                .then(saved => {
+                    setSavedProgramIds(saved.map(p => p.program_id ?? p.id));
+                })
+                .catch(() => {
+                    // fall back to cached session
+                    const currentUser = AuthService.getCurrentUser();
+                    if (currentUser) {
+                        setSavedProgramIds((currentUser.savedPrograms ?? []).map(p => p.program_id ?? p.id));
+                    }
+                });
         }
     }, []);
 
@@ -41,225 +73,239 @@ const Explore = ({ isGuest = false }) => {
         }
     };
 
-    const countries = ['All', ...new Set(programs.map(u => u.country))];
-    const degrees = ['All', ...new Set(programs.map(u => u.program?.split(' ')[0]))];
-    const durations = ['All', ...new Set(programs.map(u => u.duration))];
+    const countries = ['All', ...filterOptions.countries];
+    const degrees = ['All', ...filterOptions.degrees];
+    const durations = ['All', ...filterOptions.durations];
 
     const filteredPrograms = programs.filter(program => {
         const matchesSearch = program.program?.toLowerCase().includes(searchTerm.toLowerCase()) ||
             program.university?.toLowerCase().includes(searchTerm.toLowerCase());
-        const matchesCountry = selectedCountry === 'All' || program.country === selectedCountry;
-        const matchesDegree = selectedDegree === 'All' || program.program?.startsWith(selectedDegree);
+        const matchesCountry = selectedCountries.length === 0 || selectedCountries.includes(program.country);
+        const matchesDegree = selectedDegrees.length === 0 ||
+            selectedDegrees.some(d => (program.degree_level || '').toLowerCase() === d.toLowerCase());
         const matchesDuration = selectedDuration === 'All' || program.duration === selectedDuration;
-        const matchesBudget = Number(program.tuition) >= budgetRange[0] && Number(program.tuition) <= budgetRange[1];
+        const matchesBudget = getProgramPrice(program) >= budgetRange[0] && getProgramPrice(program) <= budgetRange[1];
         return matchesSearch && matchesCountry && matchesDegree && matchesDuration && matchesBudget;
     }).sort((a, b) => {
-        if (sortBy === 'price_low') return Number(a.tuition) - Number(b.tuition);
-        if (sortBy === 'price_high') return Number(b.tuition) - Number(a.tuition);
+        if (sortBy === 'price_low') return getProgramPrice(a) - getProgramPrice(b);
+        if (sortBy === 'price_high') return getProgramPrice(b) - getProgramPrice(a);
         return a.id - b.id;
     });
 
-
-    const activeFilterCount = [
-        selectedCountry !== 'All',
-        selectedDegree !== 'All',
-        selectedDuration !== 'All',
-        budgetRange[0] !== 0 || budgetRange[1] !== 50000
-    ].filter(Boolean).length;
+    const maxBudget = Math.max(
+        0,
+        ...programs.map(p => getProgramPrice(p)).filter(Number.isFinite)
+    );
+    const activeFilterCount = selectedCountries.length + selectedDegrees.length + (selectedDuration !== 'All' ? 1 : 0) + (budgetRange[0] !== 0 || budgetRange[1] !== maxBudget ? 1 : 0);
 
     return (
-        <div className="space-y-8 animate-in fade-in duration-500 pb-12">
-
-            {/* Hero Section - Image Based */}
-            <div className="relative overflow-hidden rounded-[2.5rem] shadow-2xl group min-h-[300px] flex items-end">
-                {/* Background Image */}
-                <div className="absolute inset-0">
-                    <img
-                        src="https://images.unsplash.com/photo-1434030216411-0b793f4b4173?q=80&w=2070&auto=format&fit=crop"
-                        alt="Planning Future"
-                        className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-105"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-r from-indigo-900/90 via-purple-900/80 to-pink-900/70 mix-blend-multiply opacity-90"></div>
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
-                </div>
-
-                {/* Content */}
-                <div className="relative z-10 p-10 md:p-14 w-full">
-                    <div className="flex flex-col md:flex-row justify-between items-end gap-8">
-                        <div>
-                            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-indigo-100 text-xs font-black uppercase tracking-widest shadow-lg mb-4">
-                                <Globe size={12} className="text-cyan-300" />
-                                Global Opportunities
+        <div className="max-w-6xl mx-auto space-y-6 pb-12 animate-in fade-in duration-500">
+            <PageHeader
+                title="Explore Programs"
+                subtitle={`${filteredPrograms.length} programs across ${countries.length - 1} countries`}
+                icon={Compass}
+                actions={
+                    <div className="flex items-center gap-3">
+                        {/* Compact Search Bar */}
+                        <div className="relative w-52 sm:w-64 group">
+                            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                                <Search className="text-indigo-500 group-focus-within:text-indigo-600 transition-colors" size={16} />
                             </div>
-                            <h1 className="text-5xl md:text-6xl font-black text-white tracking-tight leading-none mb-4 drop-shadow-xl">
-                                Explore <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-200 to-white">Programs</span>
-                            </h1>
-                            <p className="text-indigo-100/90 text-lg font-medium max-w-xl leading-relaxed">
-                                Discover your perfect master's degree from top universities worldwide. Compare costs, requirements, and opportunities.
-                            </p>
+                            <input
+                                type="text"
+                                placeholder="Search..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="block w-full pl-10 pr-4 py-2.5 bg-indigo-50/95 hover:bg-white focus:bg-white text-indigo-950 placeholder-indigo-600 rounded-xl outline-none transition-all text-sm font-bold shadow-md focus:shadow-lg"
+                            />
                         </div>
 
-                        {/* Quick Stats Overlay */}
-                        <div className="flex gap-4">
-                            <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-4 text-center min-w-[100px]">
-                                <div className="text-3xl font-black text-white mb-1">{filteredPrograms.length}</div>
-                                <div className="text-[10px] font-bold text-indigo-200 uppercase tracking-widest">Programs</div>
-                            </div>
-                            <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-4 text-center min-w-[100px]">
-                                <div className="text-3xl font-black text-white mb-1">{countries.length - 1}</div>
-                                <div className="text-[10px] font-bold text-indigo-200 uppercase tracking-widest">Countries</div>
-                            </div>
-                        </div>
+                        {/* Compact Filter Button (Icon only) */}
+                        <button
+                            onClick={() => setShowFilters(!showFilters)}
+                            className={`p-2.5 rounded-xl transition-all relative flex items-center justify-center shadow-md hover:shadow-lg ${showFilters ? 'bg-white text-indigo-700' : 'bg-indigo-50/95 text-indigo-900 hover:bg-white'}`}
+                            title="Filters"
+                        >
+                            <Filter size={18} />
+                            {activeFilterCount > 0 && (
+                                <span className="absolute -top-1.5 -right-1.5 bg-pink-500 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center shadow-md">
+                                    {activeFilterCount}
+                                </span>
+                            )}
+                        </button>
                     </div>
-                </div>
-            </div>
+                }
+            />
 
-            {/* Search & Filters Bar - Enhanced Glass */}
-            <div className="bg-white/70 glass-card p-6 rounded-[2rem] flex flex-col gap-5 sticky top-4 z-40 backdrop-blur-2xl border border-white/50 shadow-xl">
-                <div className="flex flex-col md:flex-row gap-4 items-center">
-                    {/* Enhanced Search Bar */}
-                    <div className="relative flex-grow w-full group">
-                        <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                            <Search className="text-slate-400 group-focus-within:text-indigo-600 transition-colors" size={20} />
-                        </div>
-                        <input
-                            type="text"
-                            placeholder="Search universities, programs, or keywords..."
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            className="block w-full pl-12 pr-4 py-3.5 bg-white/80 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-slate-900 placeholder-slate-400 transition-all font-medium border-2 border-indigo-50/50 outline-none hover:border-indigo-100 shadow-sm"
-                        />
-                    </div>
+            {/* Expanded Filters Panel (Pills) */}
+            {showFilters && (
+                <div className="flex flex-wrap items-center gap-3 relative z-40 animate-in slide-in-from-top-2 duration-200">
+                    {/* Transparent overlay for dismiss */}
+                    {activeDropdown && (
+                        <div className="fixed inset-0 z-30" onClick={() => setActiveDropdown(null)} />
+                    )}
 
-                    {/* Filters Button */}
-                    <button
-                        onClick={() => setShowFilters(!showFilters)}
-                        className={`flex items-center gap-2 px-8 py-3.5 rounded-xl font-bold transition-all whitespace-nowrap relative shadow-lg hover:shadow-xl hover:-translate-y-0.5 ${showFilters ? 'bg-indigo-600 text-white' : 'bg-white text-slate-700 hover:text-indigo-600'}`}
-                    >
-                        <Filter size={18} />
-                        Filters
-                        {activeFilterCount > 0 && (
-                            <span className="absolute -top-2 -right-2 bg-pink-500 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center shadow-lg border-2 border-white">
-                                {activeFilterCount}
-                            </span>
+                    {/* Country Pill */}
+                    <div className="relative z-40">
+                        <button
+                            onClick={() => setActiveDropdown(activeDropdown === 'country' ? null : 'country')}
+                            className={`flex items-center gap-2 px-4 h-[40px] rounded-full text-sm font-bold transition-all border outline-none ${selectedCountries.length > 0 || activeDropdown === 'country' ? 'bg-purple-100 border-purple-200 text-purple-700 shadow-sm' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300'}`}
+                        >
+                            <MapPin size={14} />
+                            Country {selectedCountries.length > 0 && `(${selectedCountries.length})`}
+                            <ChevronDown size={14} className={`transition-transform opacity-70 ml-0.5 ${activeDropdown === 'country' ? 'rotate-180' : ''}`} />
+                        </button>
+
+                        {activeDropdown === 'country' && (
+                            <div className="absolute top-full left-0 mt-2 w-56 bg-white flex flex-col rounded-2xl shadow-xl shadow-slate-200 border border-slate-100 p-2 max-h-64 overflow-y-auto animate-in fade-in zoom-in-95 duration-150">
+                                {countries.filter(c => c !== 'All').map(c => (
+                                    <label key={c} onClick={(e) => {
+                                        e.preventDefault();
+                                        if (selectedCountries.includes(c)) setSelectedCountries(selectedCountries.filter(x => x !== c));
+                                        else setSelectedCountries([...selectedCountries, c]);
+                                    }} className="flex items-center gap-3 px-3 py-2.5 hover:bg-slate-50 rounded-xl cursor-pointer group transition-colors select-none">
+                                        <div className={`w-4 h-4 rounded-[4px] border flex items-center justify-center transition-colors shrink-0 ${selectedCountries.includes(c) ? 'bg-purple-600 border-purple-600 text-white' : 'border-slate-300 group-hover:border-purple-400'}`}>
+                                            {selectedCountries.includes(c) && <Check size={12} strokeWidth={3} />}
+                                        </div>
+                                        <span className="text-sm font-semibold text-slate-700 leading-none">{c}</span>
+                                    </label>
+                                ))}
+                            </div>
                         )}
-                    </button>
-                </div>
+                    </div>
 
-                {/* Expanded Filters - Enhanced */}
-                {showFilters && (
-                    <div className="pt-6 border-t border-indigo-50/50 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 animate-in slide-in-from-top-2 duration-200">
-                        {/* Country Filter */}
-                        <div>
-                            <label className="text-xs font-bold text-indigo-600 uppercase tracking-wider mb-2 block flex items-center gap-2">
-                                <MapPin size={14} />
-                                Country
-                            </label>
-                            <select
-                                value={selectedCountry}
-                                onChange={(e) => setSelectedCountry(e.target.value)}
-                                className="w-full px-4 py-3 bg-white/80 rounded-xl focus:ring-2 focus:ring-indigo-500 text-slate-900 cursor-pointer transition-all font-medium border-2 border-indigo-50/50 outline-none hover:border-indigo-100 shadow-sm"
-                            >
-                                {countries.map(c => <option key={c} value={c}>{c}</option>)}
-                            </select>
-                        </div>
+                    {/* Degree Pill */}
+                    <div className="relative z-40">
+                        <button
+                            onClick={() => setActiveDropdown(activeDropdown === 'degree' ? null : 'degree')}
+                            className={`flex items-center gap-2 px-4 h-[40px] rounded-full text-sm font-bold transition-all border outline-none ${selectedDegrees.length > 0 || activeDropdown === 'degree' ? 'bg-purple-100 border-purple-200 text-purple-700 shadow-sm' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300'}`}
+                        >
+                            <SlidersHorizontal size={14} />
+                            Degree {selectedDegrees.length > 0 && `(${selectedDegrees.length})`}
+                            <ChevronDown size={14} className={`transition-transform opacity-70 ml-0.5 ${activeDropdown === 'degree' ? 'rotate-180' : ''}`} />
+                        </button>
 
-                        {/* Degree Type Filter */}
-                        <div className="space-y-2">
-                            <label className="text-xs font-black text-slate-500 uppercase tracking-wider flex items-center gap-2">
-                                <SlidersHorizontal size={14} className="text-purple-500" />
-                                Degree Type
-                            </label>
-                            <select
-                                value={selectedDegree}
-                                onChange={(e) => setSelectedDegree(e.target.value)}
-                                className="w-full px-4 py-3 bg-white/50 hover:bg-white focus:bg-white rounded-xl focus:ring-2 focus:ring-purple-500 text-slate-900 cursor-pointer transition-all font-medium border-0 shadow-sm outline-none"
-                            >
-                                {degrees.map(d => <option key={d} value={d}>{d}</option>)}
-                            </select>
-                        </div>
+                        {activeDropdown === 'degree' && (
+                            <div className="absolute top-full left-0 mt-2 w-56 bg-white flex flex-col rounded-2xl shadow-xl shadow-slate-200 border border-slate-100 p-2 max-h-64 overflow-y-auto animate-in fade-in zoom-in-95 duration-150">
+                                {degrees.filter(c => c !== 'All').map(d => (
+                                    <label key={d} onClick={(e) => {
+                                        e.preventDefault();
+                                        if (selectedDegrees.includes(d)) setSelectedDegrees(selectedDegrees.filter(x => x !== d));
+                                        else setSelectedDegrees([...selectedDegrees, d]);
+                                    }} className="flex items-center gap-3 px-3 py-2.5 hover:bg-slate-50 rounded-xl cursor-pointer group transition-colors select-none">
+                                        <div className={`w-4 h-4 rounded-[4px] border flex items-center justify-center transition-colors shrink-0 ${selectedDegrees.includes(d) ? 'bg-purple-600 border-purple-600 text-white' : 'border-slate-300 group-hover:border-purple-400'}`}>
+                                            {selectedDegrees.includes(d) && <Check size={12} strokeWidth={3} />}
+                                        </div>
+                                        <span className="text-sm font-semibold text-slate-700 leading-none">{d}</span>
+                                    </label>
+                                ))}
+                            </div>
+                        )}
+                    </div>
 
-                        {/* Duration Filter */}
-                        <div className="space-y-2">
-                            <label className="text-xs font-black text-slate-500 uppercase tracking-wider flex items-center gap-2">
-                                <Clock size={14} className="text-amber-500" />
-                                Duration
-                            </label>
-                            <select
-                                value={selectedDuration}
-                                onChange={(e) => setSelectedDuration(e.target.value)}
-                                className="w-full px-4 py-3 bg-white/50 hover:bg-white focus:bg-white rounded-xl focus:ring-2 focus:ring-amber-500 text-slate-900 cursor-pointer transition-all font-medium border-0 shadow-sm outline-none"
-                            >
-                                {durations.map(d => <option key={d} value={d}>{d}</option>)}
-                            </select>
-                        </div>
+                    {/* Duration Pill */}
+                    <div className="relative z-40">
+                        <button
+                            onClick={() => setActiveDropdown(activeDropdown === 'duration' ? null : 'duration')}
+                            className={`flex items-center gap-2 px-4 h-[40px] rounded-full text-sm font-bold transition-all border outline-none ${selectedDuration !== 'All' || activeDropdown === 'duration' ? 'bg-purple-100 border-purple-200 text-purple-700 shadow-sm' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300'}`}
+                        >
+                            <Clock size={14} />
+                            Duration {selectedDuration !== 'All' && <span className="w-1.5 h-1.5 rounded-full bg-purple-500 ml-0.5"></span>}
+                            <ChevronDown size={14} className={`transition-transform opacity-70 ml-0.5 ${activeDropdown === 'duration' ? 'rotate-180' : ''}`} />
+                        </button>
 
-                        {/* Budget Filter */}
-                        <div className="space-y-2">
-                            <label className="text-xs font-black text-slate-500 uppercase tracking-wider flex items-center gap-2">
-                                <Sparkles size={14} className="text-pink-500" />
-                                Budget (Max)
-                            </label>
-                            <div className="space-y-3 px-2">
+                        {activeDropdown === 'duration' && (
+                            <div className="absolute top-full left-0 mt-2 w-48 bg-white flex flex-col rounded-2xl shadow-xl shadow-slate-200 border border-slate-100 p-2 animate-in fade-in zoom-in-95 duration-150">
+                                {durations.map(d => (
+                                    <label key={d} onClick={() => setSelectedDuration(d)} className="flex items-center justify-between px-3 py-2.5 hover:bg-slate-50 rounded-xl cursor-pointer group transition-colors select-none">
+                                        <span className={`text-sm font-semibold leading-none ${selectedDuration === d ? 'text-purple-700' : 'text-slate-700'}`}>{d === 'All' ? 'Any Duration' : d}</span>
+                                        <div className={`w-4 h-4 rounded-full border-[1.5px] flex items-center justify-center shrink-0 ${selectedDuration === d ? 'border-purple-600' : 'border-slate-300 group-hover:border-purple-400'}`}>
+                                            {selectedDuration === d && <div className="w-2 h-2 rounded-full bg-purple-600" />}
+                                        </div>
+                                    </label>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Budget Pill */}
+                    <div className="relative z-40">
+                        <button
+                            onClick={() => setActiveDropdown(activeDropdown === 'budget' ? null : 'budget')}
+                            className={`flex items-center gap-2 px-4 h-[40px] rounded-full text-sm font-bold transition-all border outline-none ${(budgetRange[0] !== 0 || budgetRange[1] !== maxBudget) || activeDropdown === 'budget' ? 'bg-purple-100 border-purple-200 text-purple-700 shadow-sm' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300'}`}
+                        >
+                            <DollarSign size={14} />
+                            Budget {budgetRange[1] !== maxBudget && <span className="w-1.5 h-1.5 rounded-full bg-purple-500 ml-0.5"></span>}
+                            <ChevronDown size={14} className={`transition-transform opacity-70 ml-0.5 ${activeDropdown === 'budget' ? 'rotate-180' : ''}`} />
+                        </button>
+
+                        {activeDropdown === 'budget' && (
+                            <div className="absolute top-full left-0 mt-2 w-64 bg-white rounded-2xl shadow-xl shadow-slate-200 border border-slate-100 p-5 animate-in fade-in zoom-in-95 duration-150">
                                 <input
                                     type="range"
                                     min="0"
-                                    max="50000"
+                                    max={maxBudget || 1000}
                                     step="1000"
                                     value={budgetRange[1]}
                                     onChange={(e) => setBudgetRange([0, parseInt(e.target.value)])}
-                                    className="w-full h-2 bg-indigo-100 rounded-lg appearance-none cursor-pointer accent-pink-600"
+                                    className="w-full h-2 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-purple-600 mb-5 border border-slate-200"
                                 />
-                                <div className="text-sm font-bold text-slate-900 bg-white/80 px-4 py-2 rounded-xl text-center shadow-sm">
-                                    {budgetRange[1] === 50000 ? 'Any Budget' : `$${budgetRange[1].toLocaleString()}`}
+                                <div className="text-sm font-bold text-purple-700 bg-purple-50 px-4 py-2.5 rounded-xl text-center border border-purple-100">
+                                    {budgetRange[1] === maxBudget ? 'Max' : `Up to $${budgetRange[1].toLocaleString()}`}
                                 </div>
                             </div>
-                        </div>
-
-                        {/* Sort By */}
-                        <div className="md:col-span-2 lg:col-span-4 pt-4 border-t border-indigo-50/50">
-                            <label className="text-xs font-black text-slate-500 uppercase tracking-wider mb-4 block flex items-center gap-2">
-                                <ArrowUpDown size={14} className="text-indigo-500" />
-                                Sort By
-                            </label>
-                            <div className="flex flex-wrap gap-3">
-                                <button
-                                    onClick={() => setSortBy('match')}
-                                    className={`px-5 py-2.5 rounded-xl text-sm font-bold transition-all ${sortBy === 'match' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' : 'bg-white text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 shadow-sm'}`}
-                                >
-                                    Best Match
-                                </button>
-                                <button
-                                    onClick={() => setSortBy('price_low')}
-                                    className={`px-5 py-2.5 rounded-xl text-sm font-bold transition-all ${sortBy === 'price_low' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' : 'bg-white text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 shadow-sm'}`}
-                                >
-                                    Price: Low to High
-                                </button>
-                                <button
-                                    onClick={() => setSortBy('price_high')}
-                                    className={`px-5 py-2.5 rounded-xl text-sm font-bold transition-all ${sortBy === 'price_high' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' : 'bg-white text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 shadow-sm'}`}
-                                >
-                                    Price: High to Low
-                                </button>
-                                {activeFilterCount > 0 && (
-                                    <button
-                                        onClick={() => {
-                                            setSelectedCountry('All');
-                                            setSelectedDegree('All');
-                                            setSelectedDuration('All');
-                                            setBudgetRange([0, 50000]);
-                                        }}
-                                        className="px-4 py-2 rounded-lg text-sm font-bold bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700 transition-all flex items-center gap-2 ml-auto"
-                                    >
-                                        <X size={14} />
-                                        Clear Filters
-                                    </button>
-                                )}
-                            </div>
-                        </div>
+                        )}
                     </div>
-                )}
-            </div>
+
+                    {/* Sort Pill */}
+                    <div className="relative z-40">
+                        <button
+                            onClick={() => setActiveDropdown(activeDropdown === 'sort' ? null : 'sort')}
+                            className={`flex items-center gap-2 px-4 h-[40px] rounded-full text-sm font-bold transition-all border outline-none ${sortBy !== 'id' || activeDropdown === 'sort' ? 'bg-purple-100 border-purple-200 text-purple-700 shadow-sm' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300'}`}
+                        >
+                            <ArrowUpDown size={14} />
+                            Sort: {sortBy === 'match' ? 'Best Match' : sortBy === 'price_low' ? 'Low to High' : sortBy === 'price_high' ? 'High to Low' : 'Default'}
+                            <ChevronDown size={14} className={`transition-transform opacity-70 ml-0.5 ${activeDropdown === 'sort' ? 'rotate-180' : ''}`} />
+                        </button>
+
+                        {activeDropdown === 'sort' && (
+                            <div className="absolute top-full left-0 mt-2 w-56 bg-white flex flex-col rounded-2xl shadow-xl shadow-slate-200 border border-slate-100 p-2 animate-in fade-in zoom-in-95 duration-150">
+                                {[
+                                    { id: 'id', label: 'Default' },
+                                    { id: 'price_low', label: 'Price: Low to High' },
+                                    { id: 'price_high', label: 'Price: High to Low' }
+                                ].map(option => (
+                                    <label key={option.id} onClick={() => setSortBy(option.id)} className="flex items-center justify-between px-3 py-2.5 hover:bg-slate-50 rounded-xl cursor-pointer group transition-colors select-none">
+                                        <span className={`text-sm font-semibold leading-none ${sortBy === option.id ? 'text-purple-700' : 'text-slate-700'}`}>{option.label}</span>
+                                        <div className={`w-4 h-4 rounded-full border-[1.5px] flex items-center justify-center shrink-0 ${sortBy === option.id ? 'border-purple-600' : 'border-slate-300 group-hover:border-purple-400'}`}>
+                                            {sortBy === option.id && <div className="w-2 h-2 rounded-full bg-purple-600" />}
+                                        </div>
+                                    </label>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Clear Filters (if any) */}
+                    {activeFilterCount > 0 && (
+                        <button
+                            onClick={() => {
+                                setSelectedCountries([]);
+                                setSelectedDegrees([]);
+                                setSelectedDuration('All');
+                                setBudgetRange([0, maxBudget]);
+                                setSortBy('id');
+                                setActiveDropdown(null);
+                            }}
+                            className="ml-auto flex items-center gap-2 px-4 h-[40px] rounded-full text-sm font-bold text-red-500 hover:text-red-700 hover:bg-red-50 transition-colors"
+                            title="Clear Filters"
+                        >
+                            <X size={14} strokeWidth={3} />
+                            Reset
+                        </button>
+                    )}
+                </div>
+            )}
 
             {/* Results */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -283,7 +329,7 @@ const Explore = ({ isGuest = false }) => {
                             We couldn't find any programs matching your search criteria. Try adjusting your filters or search terms.
                         </p>
                         <button
-                            onClick={() => { setSearchTerm(''); setSelectedCountry('All'); }}
+                            onClick={() => { setSearchTerm(''); setSelectedCountries([]); setSelectedDegrees([]); }}
                             className="px-8 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-all shadow-lg hover:shadow-indigo-200 hover:-translate-y-1"
                         >
                             Clear all filters

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { NavLink, Link, useNavigate } from 'react-router-dom';
 import { Compass, BookOpen, CreditCard, Plane, User, LayoutDashboard, LogOut, Menu, X } from 'lucide-react';
 import ConfirmDialog from './ConfirmDialog';
+import AuthService from '../services/AuthService';
 
 const Navbar = () => {
     const navigate = useNavigate();
@@ -13,6 +14,7 @@ const Navbar = () => {
     };
 
     const confirmLogout = () => {
+        AuthService.logout();
         navigate('/login');
     };
 
@@ -26,9 +28,9 @@ const Navbar = () => {
     ];
 
     return (
-        <nav className="fixed top-0 w-full z-50 glass-nav transition-all duration-300">
+        <nav className="fixed top-0 w-full z-50 glass-nav transition-all duration-300 border-b border-indigo-100">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                <div className="flex justify-between h-20">
+                <div className="flex justify-between h-16">
                     <div className="flex items-center">
                         <Link to="/student/dashboard" className="flex-shrink-0 flex items-center gap-3 group">
                             <div className="w-11 h-11 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-xl flex items-center justify-center group-hover:shadow-glow transition-all group-hover:scale-110 shadow-md">
@@ -43,9 +45,9 @@ const Navbar = () => {
                                     key={item.name}
                                     to={item.path}
                                     className={({ isActive }) =>
-                                        `inline-flex items-center px-1 pt-1 text-sm font-bold transition-all duration-200 gap-2 border-b-2 ${isActive
-                                            ? 'border-primary text-slate-900'
-                                            : 'border-transparent text-slate-600 hover:text-slate-900 hover:border-slate-300'
+                                        `inline-flex items-center px-3 py-1 text-sm tracking-wide font-bold transition-all duration-200 gap-2 border-b-2 hover:bg-indigo-50 rounded-lg ${isActive
+                                            ? 'border-indigo-600 text-indigo-600 font-black'
+                                            : 'border-transparent text-slate-600 hover:text-slate-900'
                                         }`
                                     }
                                 >

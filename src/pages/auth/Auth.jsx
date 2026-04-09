@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Mail, Lock, User, Phone, GraduationCap, Sparkles, ArrowRight, Eye, EyeOff } from 'lucide-react';
+import { Mail, Lock, User, ArrowRight, Eye, EyeOff } from 'lucide-react';
 import AuthService from '../../services/AuthService';
 
 const Auth = () => {
@@ -15,11 +15,13 @@ const Auth = () => {
     }, [location.state]);
 
     const [showPassword, setShowPassword] = useState(false);
+
+
     const [formData, setFormData] = useState({
         email: '',
         password: '',
-        fullName: '',
-        phone: ''
+        confirmPassword: '',
+        fullName: ''
     });
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
@@ -36,6 +38,11 @@ const Auth = () => {
 
         try {
             if (isSignUp) {
+                if (formData.password !== formData.confirmPassword) {
+                    setError('Passwords do not match');
+                    setIsLoading(false);
+                    return;
+                }
                 await AuthService.register(formData);
                 navigate('/student/profile-setup');
             } else {
@@ -57,7 +64,7 @@ const Auth = () => {
     const toggleMode = () => {
         setIsSignUp(!isSignUp);
         setError('');
-        setFormData({ email: '', password: '', fullName: '', phone: '' });
+        setFormData({ email: '', password: '', confirmPassword: '', fullName: '' });
     };
 
     const containerVariants = {
@@ -114,40 +121,7 @@ const Auth = () => {
                     alt="University Campus"
                     className="w-full h-full object-cover brightness-110"
                 />
-                {/* Very Light Overlay for Readability */}
-                <div className="absolute inset-0 bg-gradient-to-br from-white/60 via-indigo-50/70 to-purple-50/60"></div>
-                {/* Subtle Pattern Overlay */}
-                <div className="absolute inset-0 opacity-5" style={{
-                    backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%236366f1' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`
-                }}></div>
             </div>
-
-            {/* Animated Background Blobs */}
-            <motion.div
-                className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-cyan-400/20 to-blue-400/20 rounded-full blur-3xl"
-                animate={{
-                    scale: [1, 1.2, 1],
-                    opacity: [0.3, 0.5, 0.3],
-                }}
-                transition={{
-                    duration: 8,
-                    repeat: Infinity,
-                    ease: "easeInOut"
-                }}
-            />
-            <motion.div
-                className="absolute bottom-0 left-0 w-96 h-96 bg-gradient-to-br from-pink-400/20 to-purple-400/20 rounded-full blur-3xl"
-                animate={{
-                    scale: [1.2, 1, 1.2],
-                    opacity: [0.5, 0.3, 0.5],
-                }}
-                transition={{
-                    duration: 8,
-                    repeat: Infinity,
-                    ease: "easeInOut",
-                    delay: 1
-                }}
-            />
 
             {/* Auth Container */}
             <motion.div
@@ -156,24 +130,6 @@ const Auth = () => {
                 initial="hidden"
                 animate="visible"
             >
-                {/* Logo/Brand */}
-                <motion.div
-                    className="text-center mb-8"
-                    initial={{ y: -20, opacity: 0 }}
-                    animate={{ y: 0, opacity: 1 }}
-                    transition={{ delay: 0.2 }}
-                >
-                    <div className="inline-flex items-center gap-2 mb-2">
-                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-600 to-purple-600 flex items-center justify-center">
-                            <GraduationCap className="text-white" size={24} />
-                        </div>
-                        <h1 className="text-3xl font-black bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
-                            EdVoyage
-                        </h1>
-                    </div>
-                    <p className="text-slate-700 font-semibold">Your journey to global education</p>
-                </motion.div>
-
                 {/* Auth Card */}
                 <div className="relative" style={{ perspective: '1000px' }}>
                     <AnimatePresence mode="wait" custom={isSignUp ? 1 : -1}>
@@ -191,7 +147,6 @@ const Auth = () => {
                                 <h2 className="text-3xl font-black text-slate-900 mb-2 flex items-center gap-2">
                                     {isSignUp ? (
                                         <>
-                                            <Sparkles className="text-indigo-600" size={28} />
                                             Create Account
                                         </>
                                     ) : (
@@ -246,28 +201,7 @@ const Auth = () => {
                                     </motion.div>
                                 )}
 
-                                {isSignUp && (
-                                    <motion.div
-                                        initial={{ opacity: 0, x: -20 }}
-                                        animate={{ opacity: 1, x: 0 }}
-                                        transition={{ delay: 0.15 }}
-                                    >
-                                        <label className="block text-sm font-bold text-slate-700 mb-2">
-                                            Phone Number
-                                        </label>
-                                        <div className="relative group">
-                                            <Phone className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-600 transition-colors" size={20} />
-                                            <input
-                                                type="tel"
-                                                name="phone"
-                                                value={formData.phone}
-                                                onChange={handleInputChange}
-                                                className="w-full pl-12 pr-4 py-3.5 bg-white border-2 border-indigo-100 rounded-xl focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 outline-none transition-all text-slate-900 font-medium placeholder-slate-400"
-                                                placeholder="+1 234 567 8900"
-                                            />
-                                        </div>
-                                    </motion.div>
-                                )}
+
 
                                 <motion.div
                                     initial={{ opacity: 0, x: -20 }}
@@ -302,23 +236,49 @@ const Auth = () => {
                                     <div className="relative group">
                                         <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-600 transition-colors" size={20} />
                                         <input
-                                            type={showPassword ? "text" : "password"}
+                                            type={(!isSignUp && showPassword) ? "text" : "password"}
                                             name="password"
                                             value={formData.password}
                                             onChange={handleInputChange}
                                             required
-                                            className="w-full pl-12 pr-12 py-3.5 bg-white border-2 border-indigo-100 rounded-xl focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 outline-none transition-all text-slate-900 font-medium placeholder-slate-400"
+                                            className={`w-full pl-12 ${!isSignUp ? 'pr-12' : 'pr-4'} py-3.5 bg-white border-2 border-indigo-100 rounded-xl focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 outline-none transition-all text-slate-900 font-medium placeholder-slate-400`}
                                             placeholder="••••••••"
                                         />
-                                        <button
-                                            type="button"
-                                            onClick={() => setShowPassword(!showPassword)}
-                                            className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-indigo-600 transition-colors"
-                                        >
-                                            {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-                                        </button>
+                                        {!isSignUp && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowPassword(!showPassword)}
+                                                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-indigo-600 transition-colors"
+                                            >
+                                                {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                                            </button>
+                                        )}
                                     </div>
                                 </motion.div>
+
+                                {isSignUp && (
+                                    <motion.div
+                                        initial={{ opacity: 0, x: -20 }}
+                                        animate={{ opacity: 1, x: 0 }}
+                                        transition={{ delay: 0.3 }}
+                                    >
+                                        <label className="block text-sm font-bold text-slate-700 mb-2">
+                                            Confirm Password
+                                        </label>
+                                        <div className="relative group">
+                                            <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-600 transition-colors" size={20} />
+                                            <input
+                                                type="password"
+                                                name="confirmPassword"
+                                                value={formData.confirmPassword}
+                                                onChange={handleInputChange}
+                                                required={isSignUp}
+                                                className="w-full pl-12 pr-4 py-3.5 bg-white border-2 border-indigo-100 rounded-xl focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 outline-none transition-all text-slate-900 font-medium placeholder-slate-400"
+                                                placeholder="Confirm your password"
+                                            />
+                                        </div>
+                                    </motion.div>
+                                )}
 
                                 {/* Submit Button */}
                                 <motion.button
